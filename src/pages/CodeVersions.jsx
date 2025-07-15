@@ -22,7 +22,7 @@ function CodeVersions() {
 
   const filteredVersions = codeVersions.filter(version => {
     const matchesSearch = version.version.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         version.description.toLowerCase().includes(searchTerm.toLowerCase());
+      version.description.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesProject = filterProject === 'all' || version.projectId === filterProject;
     return matchesSearch && matchesProject;
   });
@@ -32,7 +32,7 @@ function CodeVersions() {
       toast.error('Version number and project are required');
       return;
     }
-    
+
     addCodeVersion({
       ...newVersion,
       author: 'John Doe',
@@ -40,8 +40,13 @@ function CodeVersions() {
       changes: Math.floor(Math.random() * 50) + 1,
       files: ['main.js', 'components.jsx', 'utils.js']
     });
-    
-    setNewVersion({ projectId: '', version: '', description: '', status: 'active' });
+
+    setNewVersion({
+      projectId: '',
+      version: '',
+      description: '',
+      status: 'active'
+    });
     setShowCreateModal(false);
     toast.success('Version created successfully!');
   };
@@ -62,7 +67,7 @@ function CodeVersions() {
 
   return (
     <div className="p-6 space-y-6">
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="flex items-center justify-between"
@@ -81,7 +86,7 @@ function CodeVersions() {
       </motion.div>
 
       {/* Filters */}
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
@@ -89,7 +94,10 @@ function CodeVersions() {
       >
         <div className="flex items-center space-x-4">
           <div className="relative flex-1">
-            <SafeIcon icon={FiSearch} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+            <SafeIcon
+              icon={FiSearch}
+              className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+            />
             <input
               type="text"
               placeholder="Search versions..."
@@ -129,7 +137,6 @@ function CodeVersions() {
                 <div className="bg-primary-100 p-3 rounded-lg">
                   <SafeIcon icon={FiGitBranch} className="text-primary-600 text-xl" />
                 </div>
-                
                 <div className="flex-1">
                   <div className="flex items-center space-x-3 mb-2">
                     <h3 className="text-lg font-semibold text-dark-800">{version.version}</h3>
@@ -137,9 +144,7 @@ function CodeVersions() {
                       {version.status}
                     </span>
                   </div>
-                  
                   <p className="text-gray-600 mb-3">{version.description}</p>
-                  
                   <div className="flex items-center space-x-6 text-sm text-gray-500">
                     <div className="flex items-center space-x-1">
                       <SafeIcon icon={FiTag} className="text-xs" />
@@ -160,7 +165,6 @@ function CodeVersions() {
                   </div>
                 </div>
               </div>
-              
               <div className="flex items-center space-x-2">
                 <button className="p-2 text-gray-400 hover:text-primary-600 transition-colors">
                   <SafeIcon icon={FiEye} />
@@ -173,7 +177,7 @@ function CodeVersions() {
                 </button>
               </div>
             </div>
-            
+
             {/* Files Changed */}
             <div className="mt-4 pt-4 border-t border-gray-100">
               <div className="flex items-center justify-between">
@@ -209,7 +213,6 @@ function CodeVersions() {
             className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md mx-4"
           >
             <h2 className="text-xl font-semibold text-dark-800 mb-4">Create New Version</h2>
-            
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Project</label>
@@ -224,7 +227,7 @@ function CodeVersions() {
                   ))}
                 </select>
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Version</label>
                 <input
@@ -235,7 +238,7 @@ function CodeVersions() {
                   placeholder="e.g., v1.2.0"
                 />
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
                 <textarea
@@ -246,7 +249,7 @@ function CodeVersions() {
                   placeholder="Describe the changes in this version"
                 />
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
                 <select
@@ -260,7 +263,7 @@ function CodeVersions() {
                 </select>
               </div>
             </div>
-            
+
             <div className="flex items-center justify-end space-x-3 mt-6">
               <button
                 onClick={() => setShowCreateModal(false)}

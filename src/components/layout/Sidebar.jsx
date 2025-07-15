@@ -3,24 +3,33 @@ import { NavLink } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import SafeIcon from '../../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
+import LlmProviderSidebar from '../sidebar/LlmProviderSidebar';
 
-const { FiHome, FiFolderPlus, FiGitBranch, FiMessageCircle, FiFileText, FiSettings, FiTrendingUp } = FiIcons;
+const {
+  FiHome,
+  FiFolderPlus,
+  FiGitBranch,
+  FiMessageCircle,
+  FiFileText,
+  FiSettings,
+  FiTrendingUp
+} = FiIcons;
 
 const navItems = [
   { path: '/', label: 'Dashboard', icon: FiHome },
   { path: '/projects', label: 'Projects', icon: FiFolderPlus },
   { path: '/versions', label: 'Code Versions', icon: FiGitBranch },
-  { path: '/chat', label: 'Collaboration', icon: FiMessageCircle },
+  { path: '/chat', label: 'AI Chat', icon: FiMessageCircle },
   { path: '/requirements', label: 'Requirements', icon: FiFileText },
   { path: '/settings', label: 'Settings', icon: FiSettings },
 ];
 
 function Sidebar() {
   return (
-    <motion.aside 
+    <motion.aside
       initial={{ x: -20, opacity: 0 }}
       animate={{ x: 0, opacity: 1 }}
-      className="fixed left-0 top-16 h-[calc(100vh-4rem)] w-64 bg-white shadow-lg border-r border-gray-200 z-40"
+      className="fixed left-0 top-16 h-[calc(100vh-4rem)] w-64 bg-white shadow-lg border-r border-gray-200 z-40 overflow-y-auto"
     >
       <div className="p-6">
         <nav className="space-y-2">
@@ -47,6 +56,11 @@ function Sidebar() {
             </motion.div>
           ))}
         </nav>
+
+        {/* LLM Providers Section */}
+        <div className="mt-8">
+          <LlmProviderSidebar />
+        </div>
 
         <div className="mt-8 p-4 bg-gradient-to-r from-primary-50 to-secondary-50 rounded-lg">
           <div className="flex items-center space-x-2 mb-2">

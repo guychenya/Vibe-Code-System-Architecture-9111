@@ -2,21 +2,39 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import SafeIcon from '../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
-import { useAuthStore } from '../store/authStore';
+import { useAuth } from '../hooks/useAuth';
 import toast from 'react-hot-toast';
 
-const { FiSettings, FiUser, FiBell, FiShield, FiDatabase, FiGlobe, FiSave, FiUpload } = FiIcons;
+const { 
+  FiSettings, 
+  FiUser, 
+  FiBell, 
+  FiShield, 
+  FiDatabase, 
+  FiGlobe, 
+  FiSave, 
+  FiUpload,
+  FiGithub,
+  FiMail,
+  FiPhone,
+  FiMapPin,
+  FiCalendar,
+  FiCheck,
+  FiX
+} = FiIcons;
 
 function Settings() {
-  const { user } = useAuthStore();
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('profile');
   const [profileData, setProfileData] = useState({
-    name: user.name,
-    email: user.email,
-    role: user.role,
+    name: user?.user_metadata?.full_name || user?.email || 'User',
+    email: user?.email || 'user@example.com',
+    role: 'Developer',
     bio: 'Senior Software Developer with 5+ years of experience in full-stack development.',
     location: 'San Francisco, CA',
-    timezone: 'America/Los_Angeles'
+    timezone: 'America/Los_Angeles',
+    phone: '+1 (555) 123-4567',
+    website: 'https://example.com'
   });
 
   const [notifications, setNotifications] = useState({
@@ -36,11 +54,29 @@ function Settings() {
     loginNotifications: true
   });
 
+  const [integrations, setIntegrations] = useState({
+    github: {
+      connected: true,
+      username: 'johndoe',
+      lastSync: '2024-01-15T10:30:00Z'
+    },
+    slack: {
+      connected: false,
+      workspace: null,
+      lastSync: null
+    },
+    discord: {
+      connected: false,
+      server: null,
+      lastSync: null
+    }
+  });
+
   const tabs = [
     { id: 'profile', label: 'Profile', icon: FiUser },
     { id: 'notifications', label: 'Notifications', icon: FiBell },
     { id: 'security', label: 'Security', icon: FiShield },
-    { id: 'integration', label: 'Integration', icon: FiDatabase },
+    { id: 'integrations', label: 'Integrations', icon: FiDatabase },
     { id: 'general', label: 'General', icon: FiGlobe }
   ];
 
@@ -48,13 +84,56 @@ function Settings() {
     toast.success('Settings saved successfully!');
   };
 
+  const handleToggleNotification = (key) => {
+    setNotifications(prev => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  };
+
+  const handleToggleSecurity = (key) => {
+    setSecurity(prev => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  };
+
+  const handleConnectIntegration = (service) => {
+    toast.loading(`Connecting to ${service}...`);
+    
+    setTimeout(() => {
+      setIntegrations(prev => ({
+        ...prev,
+        [service]: {
+          ...prev[service],
+          connected: true,
+          lastSync: new Date().toISOString()
+        }
+      }));
+      toast.dismiss();
+      toast.success(`Successfully connected to ${service}!`);
+    }, 2000);
+  };
+
+  const handleDisconnectIntegration = (service) => {
+    setIntegrations(prev => ({
+      ...prev,
+      [service]: {
+        ...prev[service],
+        connected: false,
+        lastSync: null
+      }
+    }));
+    toast.success(`Disconnected from ${service}`);
+  };
+
   const renderProfileTab = () => (
     <div className="space-y-6">
       <div className="flex items-center space-x-6">
         <div className="relative">
           <img
-            src={user.avatar}
-            alt={user.name}
+            src={user?.user_metadata?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(profileData.name)}&background=0ea5e9&color=fff`}
+            alt={profileData.name}
             className="w-20 h-20 rounded-full object-cover"
           />
           <button className="absolute bottom-0 right-0 p-2 bg-primary-600 text-white rounded-full hover:bg-primary-700 transition-colors">
@@ -103,11 +182,32 @@ function Settings() {
           </select>
         </div>
         <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Phone</label>
+          <input
+            type="tel"
+            value={profileData.phone}
+            onChange={(e) => setProfileData({ ...profileData, phone: e.target.value })}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-6">
+        <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Location</label>
           <input
             type="text"
             value={profileData.location}
             onChange={(e) => setProfileData({ ...profileData, location: e.target.value })}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Website</label>
+          <input
+            type="url"
+            value={profileData.website}
+            onChange={(e) => setProfileData({ ...profileData, website: e.target.value })}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
           />
         </div>
@@ -147,122 +247,34 @@ function Settings() {
       <div>
         <h3 className="text-lg font-semibold text-dark-800 mb-4">Notification Preferences</h3>
         <div className="space-y-4">
-          <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-            <div>
-              <h4 className="font-medium text-dark-800">Email Notifications</h4>
-              <p className="text-sm text-gray-600">Receive notifications via email</p>
+          {[
+            { key: 'email', label: 'Email Notifications', desc: 'Receive notifications via email' },
+            { key: 'push', label: 'Push Notifications', desc: 'Receive push notifications on your device' },
+            { key: 'desktop', label: 'Desktop Notifications', desc: 'Show desktop notifications in browser' },
+            { key: 'projectUpdates', label: 'Project Updates', desc: 'Get notified about project changes' },
+            { key: 'versionReleases', label: 'Version Releases', desc: 'Get notified about new version releases' },
+            { key: 'requirementChanges', label: 'Requirement Changes', desc: 'Get notified about requirement updates' },
+            { key: 'chatMessages', label: 'Chat Messages', desc: 'Get notified about new chat messages' }
+          ].map(({ key, label, desc }) => (
+            <div key={key} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+              <div>
+                <h4 className="font-medium text-dark-800">{label}</h4>
+                <p className="text-sm text-gray-600">{desc}</p>
+              </div>
+              <button
+                onClick={() => handleToggleNotification(key)}
+                className={`relative inline-flex items-center h-6 w-11 rounded-full transition-colors ${
+                  notifications[key] ? 'bg-primary-600' : 'bg-gray-200'
+                }`}
+              >
+                <span
+                  className={`inline-block w-4 h-4 rounded-full bg-white transition-transform ${
+                    notifications[key] ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
             </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={notifications.email}
-                onChange={(e) => setNotifications({ ...notifications, email: e.target.checked })}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
-            </label>
-          </div>
-
-          <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-            <div>
-              <h4 className="font-medium text-dark-800">Push Notifications</h4>
-              <p className="text-sm text-gray-600">Receive push notifications on your device</p>
-            </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={notifications.push}
-                onChange={(e) => setNotifications({ ...notifications, push: e.target.checked })}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
-            </label>
-          </div>
-
-          <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-            <div>
-              <h4 className="font-medium text-dark-800">Desktop Notifications</h4>
-              <p className="text-sm text-gray-600">Show desktop notifications</p>
-            </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={notifications.desktop}
-                onChange={(e) => setNotifications({ ...notifications, desktop: e.target.checked })}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
-            </label>
-          </div>
-        </div>
-      </div>
-
-      <div>
-        <h3 className="text-lg font-semibold text-dark-800 mb-4">Activity Notifications</h3>
-        <div className="space-y-4">
-          <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-            <div>
-              <h4 className="font-medium text-dark-800">Project Updates</h4>
-              <p className="text-sm text-gray-600">Get notified about project changes</p>
-            </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={notifications.projectUpdates}
-                onChange={(e) => setNotifications({ ...notifications, projectUpdates: e.target.checked })}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
-            </label>
-          </div>
-
-          <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-            <div>
-              <h4 className="font-medium text-dark-800">Version Releases</h4>
-              <p className="text-sm text-gray-600">Get notified about new version releases</p>
-            </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={notifications.versionReleases}
-                onChange={(e) => setNotifications({ ...notifications, versionReleases: e.target.checked })}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
-            </label>
-          </div>
-
-          <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-            <div>
-              <h4 className="font-medium text-dark-800">Requirement Changes</h4>
-              <p className="text-sm text-gray-600">Get notified about requirement updates</p>
-            </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={notifications.requirementChanges}
-                onChange={(e) => setNotifications({ ...notifications, requirementChanges: e.target.checked })}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
-            </label>
-          </div>
-
-          <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-            <div>
-              <h4 className="font-medium text-dark-800">Chat Messages</h4>
-              <p className="text-sm text-gray-600">Get notified about new chat messages</p>
-            </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={notifications.chatMessages}
-                onChange={(e) => setNotifications({ ...notifications, chatMessages: e.target.checked })}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
-            </label>
-          </div>
+          ))}
         </div>
       </div>
     </div>
@@ -278,15 +290,18 @@ function Settings() {
               <h4 className="font-medium text-dark-800">Two-Factor Authentication</h4>
               <p className="text-sm text-gray-600">Add an extra layer of security to your account</p>
             </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={security.twoFactor}
-                onChange={(e) => setSecurity({ ...security, twoFactor: e.target.checked })}
-                className="sr-only peer"
+            <button
+              onClick={() => handleToggleSecurity('twoFactor')}
+              className={`relative inline-flex items-center h-6 w-11 rounded-full transition-colors ${
+                security.twoFactor ? 'bg-primary-600' : 'bg-gray-200'
+              }`}
+            >
+              <span
+                className={`inline-block w-4 h-4 rounded-full bg-white transition-transform ${
+                  security.twoFactor ? 'translate-x-6' : 'translate-x-1'
+                }`}
               />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
-            </label>
+            </button>
           </div>
 
           <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
@@ -294,47 +309,51 @@ function Settings() {
               <h4 className="font-medium text-dark-800">Login Notifications</h4>
               <p className="text-sm text-gray-600">Get notified when someone logs into your account</p>
             </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={security.loginNotifications}
-                onChange={(e) => setSecurity({ ...security, loginNotifications: e.target.checked })}
-                className="sr-only peer"
+            <button
+              onClick={() => handleToggleSecurity('loginNotifications')}
+              className={`relative inline-flex items-center h-6 w-11 rounded-full transition-colors ${
+                security.loginNotifications ? 'bg-primary-600' : 'bg-gray-200'
+              }`}
+            >
+              <span
+                className={`inline-block w-4 h-4 rounded-full bg-white transition-transform ${
+                  security.loginNotifications ? 'translate-x-6' : 'translate-x-1'
+                }`}
               />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
-            </label>
+            </button>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-6">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Session Timeout (minutes)</label>
-          <select
-            value={security.sessionTimeout}
-            onChange={(e) => setSecurity({ ...security, sessionTimeout: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-          >
-            <option value="15">15 minutes</option>
-            <option value="30">30 minutes</option>
-            <option value="60">1 hour</option>
-            <option value="120">2 hours</option>
-            <option value="480">8 hours</option>
-          </select>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Password Expiry (days)</label>
-          <select
-            value={security.passwordExpiry}
-            onChange={(e) => setSecurity({ ...security, passwordExpiry: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-          >
-            <option value="30">30 days</option>
-            <option value="60">60 days</option>
-            <option value="90">90 days</option>
-            <option value="180">180 days</option>
-            <option value="never">Never</option>
-          </select>
+      <div className="pt-4 border-t border-gray-200">
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Session Timeout (minutes)</label>
+            <select
+              value={security.sessionTimeout}
+              onChange={(e) => setSecurity({ ...security, sessionTimeout: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+            >
+              <option value="15">15 minutes</option>
+              <option value="30">30 minutes</option>
+              <option value="60">1 hour</option>
+              <option value="120">2 hours</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Password Expiry (days)</label>
+            <select
+              value={security.passwordExpiry}
+              onChange={(e) => setSecurity({ ...security, passwordExpiry: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+            >
+              <option value="30">30 days</option>
+              <option value="60">60 days</option>
+              <option value="90">90 days</option>
+              <option value="180">180 days</option>
+              <option value="365">1 year</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -346,52 +365,76 @@ function Settings() {
     </div>
   );
 
-  const renderIntegrationTab = () => (
+  const renderIntegrationsTab = () => (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-semibold text-dark-800 mb-4">API Integration</h3>
+        <h3 className="text-lg font-semibold text-dark-800 mb-4">Connected Services</h3>
         <div className="space-y-4">
-          <div className="p-4 bg-gray-50 rounded-lg">
-            <div className="flex items-center justify-between mb-2">
-              <h4 className="font-medium text-dark-800">GitHub Integration</h4>
-              <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">Connected</span>
+          {[
+            { 
+              key: 'github', 
+              name: 'GitHub', 
+              icon: FiGithub, 
+              desc: 'Sync repositories and track commits',
+              color: 'bg-gray-900'
+            },
+            { 
+              key: 'slack', 
+              name: 'Slack', 
+              icon: FiMail, 
+              desc: 'Get notifications in your Slack workspace',
+              color: 'bg-purple-600'
+            },
+            { 
+              key: 'discord', 
+              name: 'Discord', 
+              icon: FiMail, 
+              desc: 'Connect with your Discord server',
+              color: 'bg-indigo-600'
+            }
+          ].map(({ key, name, icon, desc, color }) => (
+            <div key={key} className="p-4 bg-gray-50 rounded-lg">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center space-x-3">
+                  <div className={`p-2 rounded-lg ${color}`}>
+                    <SafeIcon icon={icon} className="text-white" />
+                  </div>
+                  <div>
+                    <h4 className="font-medium text-dark-800">{name}</h4>
+                    <p className="text-sm text-gray-600">{desc}</p>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2">
+                  {integrations[key].connected ? (
+                    <>
+                      <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full flex items-center space-x-1">
+                        <SafeIcon icon={FiCheck} className="text-xs" />
+                        <span>Connected</span>
+                      </span>
+                      <button
+                        onClick={() => handleDisconnectIntegration(key)}
+                        className="text-red-600 hover:text-red-700 text-sm"
+                      >
+                        Disconnect
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => handleConnectIntegration(key)}
+                      className="px-3 py-1 bg-primary-600 text-white text-sm rounded hover:bg-primary-700 transition-colors"
+                    >
+                      Connect
+                    </button>
+                  )}
+                </div>
+              </div>
+              {integrations[key].connected && integrations[key].lastSync && (
+                <p className="text-xs text-gray-500 mt-2">
+                  Last synced: {new Date(integrations[key].lastSync).toLocaleString()}
+                </p>
+              )}
             </div>
-            <p className="text-sm text-gray-600 mb-3">Sync your repositories and track commits</p>
-            <button className="text-primary-600 hover:text-primary-700 text-sm">Configure</button>
-          </div>
-
-          <div className="p-4 bg-gray-50 rounded-lg">
-            <div className="flex items-center justify-between mb-2">
-              <h4 className="font-medium text-dark-800">Slack Integration</h4>
-              <span className="px-2 py-1 bg-gray-100 text-gray-800 text-xs rounded-full">Not Connected</span>
-            </div>
-            <p className="text-sm text-gray-600 mb-3">Get notifications in your Slack workspace</p>
-            <button className="text-primary-600 hover:text-primary-700 text-sm">Connect</button>
-          </div>
-
-          <div className="p-4 bg-gray-50 rounded-lg">
-            <div className="flex items-center justify-between mb-2">
-              <h4 className="font-medium text-dark-800">Jira Integration</h4>
-              <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">Connected</span>
-            </div>
-            <p className="text-sm text-gray-600 mb-3">Sync requirements with Jira tickets</p>
-            <button className="text-primary-600 hover:text-primary-700 text-sm">Configure</button>
-          </div>
-        </div>
-      </div>
-
-      <div>
-        <h3 className="text-lg font-semibold text-dark-800 mb-4">API Keys</h3>
-        <div className="space-y-4">
-          <div className="p-4 border border-gray-200 rounded-lg">
-            <div className="flex items-center justify-between mb-2">
-              <h4 className="font-medium text-dark-800">Personal Access Token</h4>
-              <button className="text-primary-600 hover:text-primary-700 text-sm">Regenerate</button>
-            </div>
-            <code className="text-sm text-gray-600 bg-gray-100 px-2 py-1 rounded">
-              vcs_****************************
-            </code>
-          </div>
+          ))}
         </div>
       </div>
     </div>
@@ -412,7 +455,6 @@ function Settings() {
               <option value="ja">Japanese</option>
             </select>
           </div>
-
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Theme</label>
             <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
@@ -421,7 +463,6 @@ function Settings() {
               <option value="auto">Auto</option>
             </select>
           </div>
-
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Date Format</label>
             <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
@@ -430,29 +471,6 @@ function Settings() {
               <option value="YYYY-MM-DD">YYYY-MM-DD</option>
             </select>
           </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Time Format</label>
-            <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
-              <option value="12">12-hour</option>
-              <option value="24">24-hour</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      <div className="pt-4 border-t border-gray-200">
-        <h3 className="text-lg font-semibold text-dark-800 mb-4">Danger Zone</h3>
-        <div className="space-y-4">
-          <div className="p-4 border border-red-200 rounded-lg bg-red-50">
-            <h4 className="font-medium text-red-800 mb-2">Delete Account</h4>
-            <p className="text-sm text-red-600 mb-3">
-              Once you delete your account, there is no going back. Please be certain.
-            </p>
-            <button className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors">
-              Delete Account
-            </button>
-          </div>
         </div>
       </div>
     </div>
@@ -460,24 +478,18 @@ function Settings() {
 
   const renderTabContent = () => {
     switch (activeTab) {
-      case 'profile':
-        return renderProfileTab();
-      case 'notifications':
-        return renderNotificationsTab();
-      case 'security':
-        return renderSecurityTab();
-      case 'integration':
-        return renderIntegrationTab();
-      case 'general':
-        return renderGeneralTab();
-      default:
-        return renderProfileTab();
+      case 'profile': return renderProfileTab();
+      case 'notifications': return renderNotificationsTab();
+      case 'security': return renderSecurityTab();
+      case 'integrations': return renderIntegrationsTab();
+      case 'general': return renderGeneralTab();
+      default: return renderProfileTab();
     }
   };
 
   return (
     <div className="p-6 space-y-6">
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="mb-8"
@@ -487,12 +499,12 @@ function Settings() {
       </motion.div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-        <div className="flex border-b border-gray-200">
+        <div className="flex border-b border-gray-200 overflow-x-auto">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center space-x-2 px-6 py-4 font-medium transition-colors ${
+              className={`flex items-center space-x-2 px-6 py-4 font-medium transition-colors whitespace-nowrap ${
                 activeTab === tab.id
                   ? 'text-primary-600 border-b-2 border-primary-600'
                   : 'text-gray-600 hover:text-gray-800'

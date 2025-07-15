@@ -28,7 +28,7 @@ function Requirements() {
 
   const filteredRequirements = requirements.filter(req => {
     const matchesSearch = req.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         req.description.toLowerCase().includes(searchTerm.toLowerCase());
+      req.description.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = filterStatus === 'all' || req.status === filterStatus;
     const matchesPriority = filterPriority === 'all' || req.priority === filterPriority;
     return matchesSearch && matchesStatus && matchesPriority;
@@ -39,14 +39,14 @@ function Requirements() {
       toast.error('Title and project are required');
       return;
     }
-    
+
     addRequirement({
       ...newRequirement,
       createdAt: new Date(),
       dueDate: newRequirement.dueDate ? new Date(newRequirement.dueDate) : null,
       files: []
     });
-    
+
     setNewRequirement({
       projectId: '',
       title: '',
@@ -91,7 +91,7 @@ function Requirements() {
 
   return (
     <div className="p-6 space-y-6">
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="flex items-center justify-between"
@@ -110,7 +110,7 @@ function Requirements() {
       </motion.div>
 
       {/* Filters */}
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
@@ -118,7 +118,10 @@ function Requirements() {
       >
         <div className="flex items-center space-x-4">
           <div className="relative flex-1">
-            <SafeIcon icon={FiSearch} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+            <SafeIcon
+              icon={FiSearch}
+              className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+            />
             <input
               type="text"
               placeholder="Search requirements..."
@@ -169,7 +172,6 @@ function Requirements() {
                 <div className="bg-primary-100 p-3 rounded-lg">
                   <SafeIcon icon={FiFileText} className="text-primary-600 text-xl" />
                 </div>
-                
                 <div className="flex-1">
                   <div className="flex items-center space-x-3 mb-2">
                     <h3 className="text-lg font-semibold text-dark-800">{requirement.title}</h3>
@@ -180,9 +182,7 @@ function Requirements() {
                       {requirement.priority}
                     </span>
                   </div>
-                  
                   <p className="text-gray-600 mb-3 line-clamp-2">{requirement.description}</p>
-                  
                   <div className="flex items-center space-x-6 text-sm text-gray-500">
                     <div className="flex items-center space-x-1">
                       <SafeIcon icon={FiFileText} className="text-xs" />
@@ -211,7 +211,6 @@ function Requirements() {
                   </div>
                 </div>
               </div>
-              
               <div className="flex items-center space-x-2">
                 <select
                   value={requirement.status}
@@ -223,7 +222,7 @@ function Requirements() {
                   <option value="review">Review</option>
                   <option value="completed">Completed</option>
                 </select>
-                <button 
+                <button
                   onClick={() => {
                     setSelectedRequirement(requirement);
                     setShowDetailModal(true);
@@ -250,7 +249,6 @@ function Requirements() {
             className="bg-white rounded-xl shadow-xl p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto"
           >
             <h2 className="text-xl font-semibold text-dark-800 mb-4">Create New Requirement</h2>
-            
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -266,7 +264,6 @@ function Requirements() {
                     ))}
                   </select>
                 </div>
-                
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Assignee</label>
                   <select
@@ -281,7 +278,7 @@ function Requirements() {
                   </select>
                 </div>
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Title</label>
                 <input
@@ -292,7 +289,7 @@ function Requirements() {
                   placeholder="Enter requirement title"
                 />
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
                 <textarea
@@ -303,7 +300,7 @@ function Requirements() {
                   placeholder="Describe the requirement in detail"
                 />
               </div>
-              
+
               <div className="grid grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Priority</label>
@@ -317,7 +314,6 @@ function Requirements() {
                     <option value="high">High</option>
                   </select>
                 </div>
-                
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
                   <select
@@ -331,7 +327,6 @@ function Requirements() {
                     <option value="completed">Completed</option>
                   </select>
                 </div>
-                
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Due Date</label>
                   <input
@@ -343,7 +338,7 @@ function Requirements() {
                 </div>
               </div>
             </div>
-            
+
             <div className="flex items-center justify-end space-x-3 mt-6">
               <button
                 onClick={() => setShowCreateModal(false)}
@@ -379,7 +374,7 @@ function Requirements() {
                 <SafeIcon icon={FiMoreVertical} />
               </button>
             </div>
-            
+
             <div className="space-y-4">
               <div>
                 <h3 className="text-lg font-medium text-dark-800">{selectedRequirement.title}</h3>
@@ -392,12 +387,12 @@ function Requirements() {
                   </span>
                 </div>
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
                 <p className="text-gray-600 bg-gray-50 p-3 rounded-lg">{selectedRequirement.description}</p>
               </div>
-              
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Project</label>
@@ -408,7 +403,7 @@ function Requirements() {
                   <p className="text-gray-600">{selectedRequirement.assignee}</p>
                 </div>
               </div>
-              
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Created</label>
@@ -421,7 +416,7 @@ function Requirements() {
                   </div>
                 )}
               </div>
-              
+
               {selectedRequirement.files && selectedRequirement.files.length > 0 && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Attachments</label>

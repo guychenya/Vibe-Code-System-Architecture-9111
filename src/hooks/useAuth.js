@@ -11,7 +11,7 @@ export const useAuth = () => {
 
   useEffect(() => {
     checkUser();
-    
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN') {
         setUser(session?.user ?? null);
@@ -41,16 +41,15 @@ export const useAuth = () => {
   const signIn = async (providerId, email = null, password = null) => {
     setIsLoading(true);
     setError(null);
-    
+
     try {
       if (providerId === 'email' && email && password) {
         const { data, error } = await supabase.auth.signInWithPassword({
           email,
           password
         });
-        
+
         if (error) throw error;
-        
         toast.success('Successfully signed in!');
         return data;
       } else if (providerId === 'github') {
@@ -60,7 +59,7 @@ export const useAuth = () => {
             redirectTo: `${window.location.origin}/auth/callback/github`
           }
         });
-        
+
         if (error) throw error;
         return data;
       }
@@ -76,7 +75,7 @@ export const useAuth = () => {
   const signUp = async (email, password, metadata = {}) => {
     setIsLoading(true);
     setError(null);
-    
+
     try {
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -88,9 +87,8 @@ export const useAuth = () => {
           }
         }
       });
-      
+
       if (error) throw error;
-      
       toast.success('Successfully signed up! Please check your email for verification.');
       return data;
     } catch (err) {
@@ -107,7 +105,6 @@ export const useAuth = () => {
     try {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
-      
       setUser(null);
       toast.success('Successfully signed out!');
     } catch (err) {

@@ -1,25 +1,29 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta http-equiv="Content-Security-Policy" content="
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Content-Security-Policy = '''
       default-src 'self';
       script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net;
       style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
       font-src 'self' data: https://fonts.gstatic.com;
-      img-src 'self' data: https: http:;
+      img-src 'self' data: https: http: blob:;
       connect-src 'self' https://brsvohizxhjahecgiulo.supabase.co https://github.com https://api.github.com wss://brsvohizxhjahecgiulo.supabase.co;
       frame-src 'self' https://github.com;
       object-src 'none';
       base-uri 'self';
       manifest-src 'self';
-    ">
-    <title>Vibe Code System</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
-</html>
+      worker-src 'self';
+      media-src 'self' data: blob:;
+    '''
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

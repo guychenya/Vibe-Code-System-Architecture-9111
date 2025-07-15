@@ -6,12 +6,29 @@ import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import useSupabase from '../hooks/useSupabase';
 
-const { FiPlus, FiSearch, FiFilter, FiMoreVertical, FiUsers, FiGitBranch, FiFileText, FiClock, FiLoader } = FiIcons;
+const { 
+  FiPlus, 
+  FiSearch, 
+  FiFilter, 
+  FiMoreVertical, 
+  FiUsers, 
+  FiGitBranch, 
+  FiFileText, 
+  FiClock, 
+  FiLoader,
+  FiEdit,
+  FiTrash2,
+  FiEye,
+  FiX
+} = FiIcons;
 
 function Projects() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [projectToDelete, setProjectToDelete] = useState(null);
+  const [showDropdown, setShowDropdown] = useState(null);
   const [newProject, setNewProject] = useState({
     name: '',
     description: '',
@@ -19,7 +36,7 @@ function Projects() {
     priority: 'medium',
     progress: 0
   });
-  
+
   // Use Supabase hook to fetch and manage projects
   const { 
     data: projects, 
@@ -27,7 +44,7 @@ function Projects() {
     error, 
     create: createProject,
     update: updateProject,
-    remove: deleteProject
+    remove: deleteProject 
   } = useSupabase('projects_vcs2024', {
     select: '*',
     orderBy: { column: 'created_at', ascending: false },
@@ -35,8 +52,9 @@ function Projects() {
   });
 
   const filteredProjects = projects.filter(project => {
-    const matchesSearch = project.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          (project.description && project.description.toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchesSearch = 
+      project.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+      (project.description && project.description.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesStatus = filterStatus === 'all' || project.status === filterStatus;
     return matchesSearch && matchesStatus;
   });
@@ -46,12 +64,15 @@ function Projects() {
       toast.error('Project name is required');
       return;
     }
-    
+
     try {
-      await createProject({
+      const project = {
         ...newProject,
+        created_at: new Date().toISOString(),
         last_updated: new Date().toISOString()
-      });
+      };
+
+      await createProject(project);
       
       setNewProject({
         name: '',
@@ -60,7 +81,6 @@ function Projects() {
         priority: 'medium',
         progress: 0
       });
-      
       setShowCreateModal(false);
       toast.success('Project created successfully!');
     } catch (error) {
@@ -68,40 +88,63 @@ function Projects() {
     }
   };
 
-  const handleDeleteProject = async (id) => {
+  const handleDeleteProject = async () => {
+    if (!projectToDelete) return;
+
     try {
-      await deleteProject(id);
+      await deleteProject(projectToDelete.id);
       toast.success('Project deleted successfully!');
+      setShowDeleteModal(false);
+      setProjectToDelete(null);
+      setShowDropdown(null);
     } catch (error) {
       toast.error(`Failed to delete project: ${error.message}`);
     }
   };
 
+  const handleDropdownAction = (action, project) => {
+    setShowDropdown(null);
+    
+    switch (action) {
+      case 'edit':
+        toast.info('Edit functionality coming soon!');
+        break;
+      case 'delete':
+        setProjectToDelete(project);
+        setShowDeleteModal(true);
+        break;
+      case 'view':
+        toast.info('View details coming soon!');
+        break;
+      default:
+        break;
+    }
+  };
+
   const getPriorityColor = (priority) => {
     switch (priority) {
-      case 'high':
-        return 'bg-red-100 text-red-800';
-      case 'medium':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'low':
-        return 'bg-green-100 text-green-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
+      case 'high': return 'bg-red-100 text-red-800';
+      case 'medium': return 'bg-yellow-100 text-yellow-800';
+      case 'low': return 'bg-green-100 text-green-800';
+      default: return 'bg-gray-100 text-gray-800';
     }
   };
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'active':
-        return 'bg-green-100 text-green-800';
-      case 'review':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'completed':
-        return 'bg-blue-100 text-blue-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
+      case 'active': return 'bg-green-100 text-green-800';
+      case 'review': return 'bg-yellow-100 text-yellow-800';
+      case 'completed': return 'bg-blue-100 text-blue-800';
+      default: return 'bg-gray-100 text-gray-800';
     }
   };
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = () => setShowDropdown(null);
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, []);
 
   if (loading) {
     return (
@@ -154,7 +197,10 @@ function Projects() {
       >
         <div className="flex items-center space-x-4">
           <div className="relative flex-1">
-            <SafeIcon icon={FiSearch} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+            <SafeIcon
+              icon={FiSearch}
+              className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+            />
             <input
               type="text"
               placeholder="Search projects..."
@@ -215,11 +261,46 @@ function Projects() {
                   </div>
                 </div>
                 <div className="relative">
-                  <button className="p-2 text-gray-400 hover:text-gray-600 transition-colors">
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowDropdown(showDropdown === project.id ? null : project.id);
+                    }}
+                    className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
+                  >
                     <SafeIcon icon={FiMoreVertical} />
                   </button>
+                  
+                  {/* Dropdown Menu */}
+                  {showDropdown === project.id && (
+                    <div className="absolute right-0 top-10 bg-white rounded-lg shadow-lg border border-gray-200 py-2 w-48 z-10">
+                      <button
+                        onClick={() => handleDropdownAction('view', project)}
+                        className="flex items-center space-x-2 w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-50 transition-colors"
+                      >
+                        <SafeIcon icon={FiEye} className="text-sm" />
+                        <span>View Details</span>
+                      </button>
+                      <button
+                        onClick={() => handleDropdownAction('edit', project)}
+                        className="flex items-center space-x-2 w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-50 transition-colors"
+                      >
+                        <SafeIcon icon={FiEdit} className="text-sm" />
+                        <span>Edit Project</span>
+                      </button>
+                      <hr className="my-1" />
+                      <button
+                        onClick={() => handleDropdownAction('delete', project)}
+                        className="flex items-center space-x-2 w-full px-4 py-2 text-left text-red-600 hover:bg-red-50 transition-colors"
+                      >
+                        <SafeIcon icon={FiTrash2} className="text-sm" />
+                        <span>Delete Project</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
+
               <div className="space-y-3">
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-gray-600">Progress</span>
@@ -231,6 +312,7 @@ function Projects() {
                     style={{ width: `${project.progress}%` }}
                   />
                 </div>
+
                 <div className="flex items-center justify-between pt-4 border-t border-gray-100">
                   <div className="flex items-center space-x-4 text-sm text-gray-600">
                     <div className="flex items-center space-x-1">
@@ -248,7 +330,9 @@ function Projects() {
                   </div>
                   <div className="flex items-center space-x-1 text-xs text-gray-500">
                     <SafeIcon icon={FiClock} />
-                    <span>{format(new Date(project.last_updated || project.created_at), 'MMM dd')}</span>
+                    <span>
+                      {format(new Date(project.last_updated || project.created_at), 'MMM dd')}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -277,6 +361,7 @@ function Projects() {
                   placeholder="Enter project name"
                 />
               </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
                 <textarea
@@ -287,6 +372,7 @@ function Projects() {
                   placeholder="Enter project description"
                 />
               </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
@@ -314,6 +400,7 @@ function Projects() {
                 </div>
               </div>
             </div>
+
             <div className="flex items-center justify-end space-x-3 mt-6">
               <button
                 onClick={() => setShowCreateModal(false)}
@@ -326,6 +413,52 @@ function Projects() {
                 className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
               >
                 Create Project
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && projectToDelete && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md mx-4"
+          >
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="bg-red-100 p-3 rounded-full">
+                <SafeIcon icon={FiTrash2} className="text-red-600 text-xl" />
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold text-dark-800">Delete Project</h2>
+                <p className="text-gray-600">This action cannot be undone.</p>
+              </div>
+            </div>
+
+            <div className="bg-gray-50 p-4 rounded-lg mb-6">
+              <p className="text-sm text-gray-700">
+                Are you sure you want to delete <strong>"{projectToDelete.name}"</strong>? 
+                This will permanently remove the project and all associated data.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end space-x-3">
+              <button
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setProjectToDelete(null);
+                }}
+                className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteProject}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              >
+                Delete Project
               </button>
             </div>
           </motion.div>

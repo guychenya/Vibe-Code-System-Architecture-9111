@@ -43,15 +43,31 @@ function Dashboard() {
   ];
 
   const recentActivity = [
-    { type: 'version', message: 'New version v2.1.0 created for E-commerce Platform', time: '2 hours ago' },
-    { type: 'requirement', message: 'Payment Gateway Integration requirement updated', time: '4 hours ago' },
-    { type: 'project', message: 'Mobile Banking App moved to review stage', time: '6 hours ago' },
-    { type: 'chat', message: 'New message in Analytics Dashboard discussion', time: '1 day ago' }
+    {
+      type: 'version',
+      message: 'New version v2.1.0 created for E-commerce Platform',
+      time: '2 hours ago'
+    },
+    {
+      type: 'requirement',
+      message: 'Payment Gateway Integration requirement updated',
+      time: '4 hours ago'
+    },
+    {
+      type: 'project',
+      message: 'Mobile Banking App moved to review stage',
+      time: '6 hours ago'
+    },
+    {
+      type: 'chat',
+      message: 'New message in Analytics Dashboard discussion',
+      time: '1 day ago'
+    }
   ];
 
   return (
     <div className="p-6 space-y-6">
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="mb-8"
@@ -100,7 +116,6 @@ function Dashboard() {
               <SafeIcon icon={FiArrowRight} className="text-sm" />
             </Link>
           </div>
-          
           <div className="space-y-4">
             {projects.slice(0, 3).map((project) => (
               <div key={project.id} className="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg">
@@ -124,7 +139,7 @@ function Dashboard() {
                   <div className="text-lg font-semibold text-dark-800">{project.progress}%</div>
                   <div className="w-16 h-2 bg-gray-200 rounded-full mt-1">
                     <div 
-                      className="h-full bg-primary-500 rounded-full" 
+                      className="h-full bg-primary-500 rounded-full"
                       style={{ width: `${project.progress}%` }}
                     />
                   </div>
@@ -145,7 +160,6 @@ function Dashboard() {
             <h2 className="text-xl font-semibold text-dark-800">Recent Activity</h2>
             <SafeIcon icon={FiClock} className="text-gray-400" />
           </div>
-          
           <div className="space-y-4">
             {recentActivity.map((activity, index) => (
               <div key={index} className="flex items-start space-x-3">
@@ -155,13 +169,13 @@ function Dashboard() {
                   activity.type === 'project' ? 'bg-yellow-100' :
                   'bg-purple-100'
                 }`}>
-                  <SafeIcon 
+                  <SafeIcon
                     icon={
                       activity.type === 'version' ? FiGitBranch :
                       activity.type === 'requirement' ? FiFileText :
                       activity.type === 'project' ? FiActivity :
                       FiUsers
-                    } 
+                    }
                     className={`text-sm ${
                       activity.type === 'version' ? 'text-primary-600' :
                       activity.type === 'requirement' ? 'text-green-600' :

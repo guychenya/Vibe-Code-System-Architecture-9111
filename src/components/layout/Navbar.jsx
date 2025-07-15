@@ -24,6 +24,7 @@ function Navbar() {
               </div>
               <span className="text-xl font-bold text-dark-800">Vibe Code</span>
             </div>
+
             <div className="relative ml-8">
               <SafeIcon icon={FiSearch} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
               <input
@@ -33,6 +34,7 @@ function Navbar() {
               />
             </div>
           </div>
+
           <div className="flex items-center space-x-4">
             <button className="relative p-2 text-gray-600 hover:text-primary-600 transition-colors">
               <SafeIcon icon={FiBell} className="text-xl" />
@@ -40,21 +42,22 @@ function Navbar() {
                 3
               </span>
             </button>
+
             <div className="flex items-center space-x-3">
-              <img 
-                src={user?.avatar || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=40&h=40&fit=crop&crop=face'} 
-                alt={user?.name || 'User'} 
+              <img
+                src={user?.user_metadata?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.user_metadata?.full_name || user?.email || 'User')}&background=0ea5e9&color=fff`}
+                alt={user?.user_metadata?.full_name || user?.email || 'User'}
                 className="w-8 h-8 rounded-full object-cover"
               />
               <div className="text-sm">
-                <div className="font-medium text-dark-800">{user?.name || 'User'}</div>
+                <div className="font-medium text-dark-800">{user?.user_metadata?.full_name || user?.email || 'User'}</div>
                 <div className="text-gray-600">{user?.email || 'user@example.com'}</div>
               </div>
               <div className="flex items-center">
                 <button className="p-1 text-gray-600 hover:text-primary-600 transition-colors">
                   <SafeIcon icon={FiSettings} className="text-lg" />
                 </button>
-                <button 
+                <button
                   className="p-1 text-gray-600 hover:text-red-600 transition-colors ml-1"
                   onClick={signOut}
                   title="Sign out"

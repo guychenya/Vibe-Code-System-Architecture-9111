@@ -14,6 +14,18 @@ import AuthCallback from './components/auth/AuthCallback';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 
 function App() {
+  const Layout = ({ children }) => (
+    <>
+      <Navbar />
+      <div className="flex">
+        <Sidebar />
+        <main className="flex-1 ml-64 pt-16">
+          {children}
+        </main>
+      </div>
+    </>
+  );
+
   return (
     <Router>
       <div className="min-h-screen bg-gray-50">
@@ -22,88 +34,52 @@ function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/auth/callback/:provider" element={<AuthCallback />} />
 
-          {/* Protected app routes */}
+          {/* Protected app routes with shared layout */}
           <Route path="/" element={
             <ProtectedRoute>
-              <>
-                <Navbar />
-                <div className="flex">
-                  <Sidebar />
-                  <main className="flex-1 ml-64 pt-16">
-                    <Dashboard />
-                  </main>
-                </div>
-              </>
+              <Layout>
+                <Dashboard />
+              </Layout>
             </ProtectedRoute>
           } />
           
           <Route path="/projects" element={
             <ProtectedRoute>
-              <>
-                <Navbar />
-                <div className="flex">
-                  <Sidebar />
-                  <main className="flex-1 ml-64 pt-16">
-                    <Projects />
-                  </main>
-                </div>
-              </>
+              <Layout>
+                <Projects />
+              </Layout>
             </ProtectedRoute>
           } />
           
           <Route path="/versions" element={
             <ProtectedRoute>
-              <>
-                <Navbar />
-                <div className="flex">
-                  <Sidebar />
-                  <main className="flex-1 ml-64 pt-16">
-                    <CodeVersions />
-                  </main>
-                </div>
-              </>
+              <Layout>
+                <CodeVersions />
+              </Layout>
             </ProtectedRoute>
           } />
           
           <Route path="/chat" element={
             <ProtectedRoute>
-              <>
-                <Navbar />
-                <div className="flex">
-                  <Sidebar />
-                  <main className="flex-1 ml-64 pt-16">
-                    <Chat />
-                  </main>
-                </div>
-              </>
+              <Layout>
+                <Chat />
+              </Layout>
             </ProtectedRoute>
           } />
           
           <Route path="/requirements" element={
             <ProtectedRoute>
-              <>
-                <Navbar />
-                <div className="flex">
-                  <Sidebar />
-                  <main className="flex-1 ml-64 pt-16">
-                    <Requirements />
-                  </main>
-                </div>
-              </>
+              <Layout>
+                <Requirements />
+              </Layout>
             </ProtectedRoute>
           } />
           
           <Route path="/settings" element={
             <ProtectedRoute>
-              <>
-                <Navbar />
-                <div className="flex">
-                  <Sidebar />
-                  <main className="flex-1 ml-64 pt-16">
-                    <Settings />
-                  </main>
-                </div>
-              </>
+              <Layout>
+                <Settings />
+              </Layout>
             </ProtectedRoute>
           } />
         </Routes>
