@@ -1,57 +1,34 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import SafeIcon from '../../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
-import authService from '../../services/auth-service.js';
-import toast from 'react-hot-toast';
 import supabase from '../../lib/supabase.js';
+import toast from 'react-hot-toast';
 
 const { FiLoader, FiCheckCircle, FiXCircle } = FiIcons;
 
-function AuthCallback() {
+export default function AuthCallback() {
   const { provider } = useParams();
   const navigate = useNavigate();
-  const location = useLocation();
   const [status, setStatus] = useState('processing'); // processing, success, error
   const [message, setMessage] = useState('Processing authentication...');
 
   useEffect(() => {
     const handleCallback = async () => {
       try {
-        const searchParams = new URLSearchParams(location.search);
-        
         // For GitHub auth via Supabase
-        if (provider === 'github') {
-          // The hash contains the access token
-          if (window.location.hash) {
-            // Supabase handles this automatically, just get the session
-            const { data: { session }, error } = await supabase.auth.getSession();
-            
-            if (error) throw error;
-            if (!session) throw new Error('No session found after authentication');
-            
-            const { data: { user } } = await supabase.auth.getUser();
-            
-            setStatus('success');
-            setMessage(`Welcome back, ${user.user_metadata?.name || user.email}!`);
-            toast.success(`Successfully signed in with ${provider}`);
-            
-            // Redirect to dashboard after a short delay
-            setTimeout(() => {
-              navigate('/');
-            }, 2000);
-            return;
-          }
-        }
+        const { data: { session }, error } = await supabase.auth.getSession();
         
-        // Fallback to OIDC for other providers
-        const user = await authService.handleCallback(provider, searchParams);
+        if (error) throw error;
+        if (!session) throw new Error('No session found after authentication');
+
+        const { data: { user } } = await supabase.auth.getUser();
         
         setStatus('success');
-        setMessage(`Welcome back, ${user.name}!`);
+        setMessage(`Welcome back, ${user.user_metadata?.name || user.email}!`);
         toast.success(`Successfully signed in with ${provider}`);
-        
+
         // Redirect to dashboard after a short delay
         setTimeout(() => {
           navigate('/');
@@ -60,7 +37,7 @@ function AuthCallback() {
         setStatus('error');
         setMessage(error.message || 'Authentication failed');
         toast.error(`Authentication failed: ${error.message}`);
-        
+
         // Redirect to login after a short delay
         setTimeout(() => {
           navigate('/login');
@@ -69,7 +46,7 @@ function AuthCallback() {
     };
 
     handleCallback();
-  }, [provider, location.search, navigate]);
+  }, [provider, navigate]);
 
   const getStatusIcon = () => {
     switch (status) {
@@ -122,21 +99,14 @@ function AuthCallback() {
           </div>
         )}
         {status === 'error' && (
-          <div className="space-y-4">
-            <button
-              onClick={() => navigate('/login')}
-              className="w-full bg-primary-600 text-white py-3 rounded-lg font-medium hover:bg-primary-700 transition-colors"
-            >
-              Back to Login
-            </button>
-            <p className="text-sm text-gray-500">
-              Redirecting automatically in a few seconds...
-            </p>
-          </div>
+          <button
+            onClick={() => navigate('/login')}
+            className="bg-primary-600 text-white px-6 py-2 rounded-lg hover:bg-primary-700 transition-colors"
+          >
+            Back to Login
+          </button>
         )}
       </motion.div>
     </div>
   );
 }
-
-export default AuthCallback;

@@ -3,79 +3,58 @@ import { motion } from 'framer-motion';
 import SafeIcon from '../../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
 import { useAuth } from '../../hooks/useAuth';
-import { OIDC_PROVIDERS } from '../../lib/oidc-config.js';
+import toast from 'react-hot-toast';
 
 const { FiCode, FiShield, FiUsers, FiGithub, FiMail, FiLock, FiEye, FiEyeOff, FiLoader } = FiIcons;
 
-function LoginPage() {
+// Export the component as default
+export default function LoginPage() {
   const { signIn, signUp, isLoading, error } = useAuth();
-  const [authMode, setAuthMode] = useState('login'); // 'login' or 'signup'
+  const [authMode, setAuthMode] = useState('login');
   const [showPassword, setShowPassword] = useState(false);
+  const [formError, setFormError] = useState('');
   const [emailForm, setEmailForm] = useState({
     email: '',
     password: '',
     confirmPassword: '',
     name: ''
   });
-  const [selectedProvider, setSelectedProvider] = useState(null);
 
   const handleEmailAuth = async (e) => {
     e.preventDefault();
-    
-    if (authMode === 'signup') {
-      if (emailForm.password !== emailForm.confirmPassword) {
-        return; // Error will be shown by validation
+    setFormError('');
+
+    try {
+      if (authMode === 'signup') {
+        if (emailForm.password !== emailForm.confirmPassword) {
+          toast.error('Passwords do not match');
+          return;
+        }
+        if (emailForm.password.length < 6) {
+          toast.error('Password must be at least 6 characters');
+          return;
+        }
+        if (!emailForm.name.trim()) {
+          toast.error('Name is required');
+          return;
+        }
+        await signUp(emailForm.email, emailForm.password, { name: emailForm.name });
+      } else {
+        await signIn('email', emailForm.email, emailForm.password);
       }
-      if (!emailForm.name.trim()) {
-        return;
-      }
-      await signUp(emailForm.email, emailForm.password, { name: emailForm.name });
-    } else {
-      await signIn('email', emailForm.email, emailForm.password);
+    } catch (err) {
+      setFormError(err.message);
+      toast.error(err.message);
     }
   };
 
   const handleProviderLogin = async (providerId) => {
-    setSelectedProvider(providerId);
-    await signIn(providerId);
-  };
-
-  const getProviderIcon = (providerId) => {
-    switch (providerId) {
-      case 'github': return FiGithub;
-      case 'google': return FiMail;
-      default: return FiUsers;
+    try {
+      await signIn(providerId);
+    } catch (err) {
+      setFormError(err.message);
+      toast.error(err.message);
     }
-  };
-
-  const features = [
-    {
-      icon: FiCode,
-      title: 'Code Version Management',
-      description: 'Track and manage your code versions with full history and rollback capabilities'
-    },
-    {
-      icon: FiUsers,
-      title: 'Team Collaboration',
-      description: 'Real-time chat, file sharing, and seamless team communication'
-    },
-    {
-      icon: FiShield,
-      title: 'Secure Authentication',
-      description: 'Multiple authentication options with enterprise-grade security'
-    }
-  ];
-
-  const isFormValid = () => {
-    if (authMode === 'signup') {
-      return emailForm.email && 
-             emailForm.password && 
-             emailForm.confirmPassword && 
-             emailForm.name.trim() &&
-             emailForm.password === emailForm.confirmPassword &&
-             emailForm.password.length >= 6;
-    }
-    return emailForm.email && emailForm.password;
   };
 
   return (
@@ -98,7 +77,23 @@ function LoginPage() {
           </div>
 
           <div className="space-y-8">
-            {features.map((feature, index) => (
+            {[
+              {
+                icon: FiCode,
+                title: 'Code Version Management',
+                description: 'Track and manage your code versions with full history'
+              },
+              {
+                icon: FiUsers,
+                title: 'Team Collaboration',
+                description: 'Real-time chat and seamless team communication'
+              },
+              {
+                icon: FiShield,
+                title: 'Secure Authentication',
+                description: 'Multiple authentication options with enterprise-grade security'
+              }
+            ].map((feature, index) => (
               <motion.div
                 key={feature.title}
                 initial={{ opacity: 0, y: 20 }}
@@ -119,7 +114,7 @@ function LoginPage() {
         </motion.div>
       </div>
 
-      {/* Right side - Login/Signup */}
+      {/* Right side - Login/Signup Form */}
       <div className="w-full lg:w-1/2 flex items-center justify-center p-6">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -134,12 +129,11 @@ function LoginPage() {
             <p className="text-gray-600">
               {authMode === 'login' 
                 ? 'Sign in to your account to continue' 
-                : 'Sign up to get started with Vibe Code System'
-              }
+                : 'Sign up to get started with Vibe Code System'}
             </p>
           </div>
 
-          {error && (
+          {(error || formError) && (
             <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -147,12 +141,11 @@ function LoginPage() {
             >
               <div className="flex items-center space-x-2">
                 <SafeIcon icon={FiShield} className="text-red-600" />
-                <span className="text-red-700 text-sm">{error}</span>
+                <span className="text-red-700 text-sm">{error || formError}</span>
               </div>
             </motion.div>
           )}
 
-          {/* Email Form */}
           <form onSubmit={handleEmailAuth} className="space-y-4 mb-6">
             {authMode === 'signup' && (
               <div>
@@ -163,9 +156,8 @@ function LoginPage() {
                   type="text"
                   value={emailForm.name}
                   onChange={(e) => setEmailForm({ ...emailForm, name: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
                   placeholder="Enter your full name"
-                  required
                 />
               </div>
             )}
@@ -180,9 +172,8 @@ function LoginPage() {
                   type="email"
                   value={emailForm.email}
                   onChange={(e) => setEmailForm({ ...emailForm, email: e.target.value })}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
                   placeholder="Enter your email"
-                  required
                 />
               </div>
             </div>
@@ -197,10 +188,8 @@ function LoginPage() {
                   type={showPassword ? 'text' : 'password'}
                   value={emailForm.password}
                   onChange={(e) => setEmailForm({ ...emailForm, password: e.target.value })}
-                  className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
                   placeholder="Enter your password"
-                  minLength={6}
-                  required
                 />
                 <button
                   type="button"
@@ -210,11 +199,6 @@ function LoginPage() {
                   <SafeIcon icon={showPassword ? FiEyeOff : FiEye} />
                 </button>
               </div>
-              {authMode === 'signup' && (
-                <p className="text-xs text-gray-500 mt-1">
-                  Password must be at least 6 characters long
-                </p>
-              )}
             </div>
 
             {authMode === 'signup' && (
@@ -228,27 +212,17 @@ function LoginPage() {
                     type={showPassword ? 'text' : 'password'}
                     value={emailForm.confirmPassword}
                     onChange={(e) => setEmailForm({ ...emailForm, confirmPassword: e.target.value })}
-                    className={`w-full pl-10 pr-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent ${
-                      emailForm.confirmPassword && emailForm.password !== emailForm.confirmPassword
-                        ? 'border-red-300 bg-red-50'
-                        : 'border-gray-300'
-                    }`}
+                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
                     placeholder="Confirm your password"
-                    required
                   />
                 </div>
-                {emailForm.confirmPassword && emailForm.password !== emailForm.confirmPassword && (
-                  <p className="text-xs text-red-500 mt-1">
-                    Passwords do not match
-                  </p>
-                )}
               </div>
             )}
 
             <button
               type="submit"
-              disabled={isLoading || !isFormValid()}
-              className="w-full flex items-center justify-center space-x-2 py-3 px-4 bg-primary-600 text-white rounded-lg font-medium hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={isLoading}
+              className="w-full flex items-center justify-center space-x-2 py-3 px-4 bg-primary-600 text-white rounded-lg font-medium hover:bg-primary-700 transition-colors disabled:opacity-50"
             >
               {isLoading ? (
                 <SafeIcon icon={FiLoader} className="animate-spin" />
@@ -266,23 +240,22 @@ function LoginPage() {
             </button>
           </form>
 
-          {/* Auth Mode Toggle */}
           <div className="text-center mb-6">
-            <p className="text-gray-600">
-              {authMode === 'login' ? "Don't have an account? " : "Already have an account? "}
-              <button
-                onClick={() => {
-                  setAuthMode(authMode === 'login' ? 'signup' : 'login');
-                  setEmailForm({ email: '', password: '', confirmPassword: '', name: '' });
-                }}
-                className="text-primary-600 hover:text-primary-700 font-medium"
-              >
-                {authMode === 'login' ? 'Sign Up' : 'Sign In'}
-              </button>
-            </p>
+            <button
+              onClick={() => {
+                setAuthMode(authMode === 'login' ? 'signup' : 'login');
+                setEmailForm({ email: '', password: '', confirmPassword: '', name: '' });
+                setFormError('');
+              }}
+              className="text-primary-600 hover:text-primary-700 font-medium"
+            >
+              {authMode === 'login' 
+                ? "Don't have an account? Sign Up" 
+                : "Already have an account? Sign In"
+              }
+            </button>
           </div>
 
-          {/* Divider */}
           <div className="relative mb-6">
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-gray-300"></div>
@@ -292,42 +265,16 @@ function LoginPage() {
             </div>
           </div>
 
-          {/* OAuth Providers */}
-          <div className="space-y-3">
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => handleProviderLogin('github')}
-              disabled={isLoading}
-              className="w-full flex items-center justify-center space-x-3 py-3 px-4 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isLoading && selectedProvider === 'github' ? (
-                <SafeIcon icon={FiLoader} className="animate-spin" />
-              ) : (
-                <SafeIcon icon={FiGithub} />
-              )}
-              <span>
-                {isLoading && selectedProvider === 'github' ? 'Connecting...' : 'Continue with GitHub'}
-              </span>
-            </motion.button>
-          </div>
-
-          <div className="mt-8 pt-6 border-t border-gray-200">
-            <div className="text-center">
-              <p className="text-sm text-gray-600 mb-4">
-                By {authMode === 'login' ? 'signing in' : 'creating an account'}, you agree to our Terms of Service and Privacy Policy
-              </p>
-              <div className="flex items-center justify-center space-x-4 text-xs text-gray-500">
-                <span>🔒 Secure Authentication</span>
-                <span>•</span>
-                <span>🛡️ Privacy Protected</span>
-              </div>
-            </div>
-          </div>
+          <button
+            onClick={() => handleProviderLogin('github')}
+            disabled={isLoading}
+            className="w-full flex items-center justify-center space-x-2 py-3 px-4 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-800 transition-colors disabled:opacity-50"
+          >
+            <SafeIcon icon={FiGithub} />
+            <span>Continue with GitHub</span>
+          </button>
         </motion.div>
       </div>
     </div>
   );
 }
-
-export default LoginPage;

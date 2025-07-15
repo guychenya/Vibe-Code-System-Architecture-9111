@@ -1,83 +1,42 @@
 import { useState, useEffect } from 'react';
-import authService from '../services/auth-service.js';
+import { useNavigate } from 'react-router-dom';
 import supabase from '../lib/supabase.js';
+import toast from 'react-hot-toast';
 
 export const useAuth = () => {
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
-    // Check for existing Supabase session first
-    const checkSession = async () => {
-      try {
-        setIsLoading(true);
-        
-        // Get session from Supabase
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        if (session) {
-          const { data: { user: supabaseUser } } = await supabase.auth.getUser();
-          if (supabaseUser) {
-            setUser({
-              id: supabaseUser.id,
-              email: supabaseUser.email,
-              name: supabaseUser.user_metadata?.full_name || supabaseUser.user_metadata?.name || supabaseUser.email,
-              avatar: supabaseUser.user_metadata?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(supabaseUser.user_metadata?.full_name || supabaseUser.email)}&background=0ea5e9&color=fff`,
-              provider: supabaseUser.app_metadata?.provider || 'email',
-              createdAt: supabaseUser.created_at
-            });
-          } else {
-            // Fallback to authService
-            setUser(authService.getCurrentUser());
-          }
-        } else {
-          // Fallback to authService
-          setUser(authService.getCurrentUser());
-        }
-      } catch (err) {
-        console.error("Auth session error:", err);
-        setError(err.message);
-      } finally {
-        setIsLoading(false);
+    checkUser();
+    
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN') {
+        setUser(session?.user ?? null);
+        navigate('/');
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null);
+        navigate('/login');
       }
-    };
-
-    checkSession();
-
-    // Subscribe to auth state changes from authService
-    const unsubscribe = authService.addAuthListener((newUser) => {
-      setUser(newUser);
-      setError(null);
-      setIsLoading(false);
     });
 
-    // Subscribe to Supabase auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (event === 'SIGNED_IN' && session) {
-          const { data: { user: supabaseUser } } = await supabase.auth.getUser();
-          setUser({
-            id: supabaseUser.id,
-            email: supabaseUser.email,
-            name: supabaseUser.user_metadata?.full_name || supabaseUser.user_metadata?.name || supabaseUser.email,
-            avatar: supabaseUser.user_metadata?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(supabaseUser.user_metadata?.full_name || supabaseUser.email)}&background=0ea5e9&color=fff`,
-            provider: supabaseUser.app_metadata?.provider || 'email',
-            createdAt: supabaseUser.created_at
-          });
-          setIsLoading(false);
-        } else if (event === 'SIGNED_OUT') {
-          setUser(null);
-          setIsLoading(false);
-        }
-      }
-    );
-
     return () => {
-      unsubscribe();
       subscription?.unsubscribe();
     };
-  }, []);
+  }, [navigate]);
+
+  async function checkUser() {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
+    } catch (error) {
+      console.error('Error checking user:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }
 
   const signIn = async (providerId, email = null, password = null) => {
     setIsLoading(true);
@@ -85,7 +44,6 @@ export const useAuth = () => {
     
     try {
       if (providerId === 'email' && email && password) {
-        // Email/password sign in
         const { data, error } = await supabase.auth.signInWithPassword({
           email,
           password
@@ -93,20 +51,23 @@ export const useAuth = () => {
         
         if (error) throw error;
         
-        // User will be set by the auth state change listener
-        authService.logSecurityEvent('sign_in_attempt', { provider: 'email' });
+        toast.success('Successfully signed in!');
+        return data;
       } else if (providerId === 'github') {
-        // Use Supabase auth for GitHub
-        await authService.signIn(providerId);
-      } else {
-        // Use OIDC client for other providers
-        await authService.signIn(providerId);
+        const { data, error } = await supabase.auth.signInWithOAuth({
+          provider: 'github',
+          options: {
+            redirectTo: `${window.location.origin}/auth/callback/github`
+          }
+        });
+        
+        if (error) throw error;
+        return data;
       }
-      
-      authService.logSecurityEvent('sign_in_attempt', { provider: providerId });
     } catch (err) {
+      console.error('Sign in error:', err);
       setError(err.message);
-      authService.logSecurityEvent('sign_in_failed', { provider: providerId, error: err.message });
+      toast.error(err.message);
     } finally {
       setIsLoading(false);
     }
@@ -123,18 +84,19 @@ export const useAuth = () => {
         options: {
           data: {
             full_name: metadata.name || '',
-            name: metadata.name || ''
+            avatar_url: `https://ui-avatars.com/api/?name=${encodeURIComponent(metadata.name || email)}&background=0ea5e9&color=fff`
           }
         }
       });
       
       if (error) throw error;
       
-      // User will be set by the auth state change listener
-      authService.logSecurityEvent('sign_up_attempt', { provider: 'email' });
+      toast.success('Successfully signed up! Please check your email for verification.');
+      return data;
     } catch (err) {
+      console.error('Sign up error:', err);
       setError(err.message);
-      authService.logSecurityEvent('sign_up_failed', { provider: 'email', error: err.message });
+      toast.error(err.message);
     } finally {
       setIsLoading(false);
     }
@@ -142,20 +104,16 @@ export const useAuth = () => {
 
   const signOut = async () => {
     setIsLoading(true);
-    setError(null);
-    
     try {
-      // Sign out from Supabase
-      await supabase.auth.signOut();
-      
-      // Also sign out from authService
-      await authService.signOut();
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
       
       setUser(null);
-      authService.logSecurityEvent('sign_out');
+      toast.success('Successfully signed out!');
     } catch (err) {
+      console.error('Sign out error:', err);
       setError(err.message);
-      authService.logSecurityEvent('sign_out_failed', { error: err.message });
+      toast.error(err.message);
     } finally {
       setIsLoading(false);
     }
@@ -168,8 +126,6 @@ export const useAuth = () => {
     error,
     signIn,
     signUp,
-    signOut,
-    hasPermission: authService.hasPermission.bind(authService),
-    getAvailableProviders: authService.getAvailableProviders.bind(authService)
+    signOut
   };
 };
