@@ -12,19 +12,6 @@ export const OIDC_PROVIDERS = {
     token_endpoint: 'https://github.com/login/oauth/access_token',
     userinfo_endpoint: 'https://api.github.com/user',
     logo: 'https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png'
-  },
-  netlify: {
-    name: 'Netlify',
-    authority: 'https://app.netlify.com',
-    client_id: import.meta.env.VITE_NETLIFY_CLIENT_ID || 'your-netlify-client-id',
-    client_secret: import.meta.env.VITE_NETLIFY_CLIENT_SECRET || 'your-netlify-client-secret',
-    redirect_uri: `${window.location.origin}/auth/callback/netlify`,
-    scope: 'openid profile email',
-    response_type: 'code',
-    authorization_endpoint: 'https://app.netlify.com/oauth/authorize',
-    token_endpoint: 'https://app.netlify.com/oauth/token',
-    userinfo_endpoint: 'https://api.netlify.com/api/v1/user',
-    logo: 'https://www.netlify.com/img/press/logos/logomark.png'
   }
 };
 

@@ -1,12 +1,14 @@
 import OIDCClient from '../lib/oidc-client.js';
 import { OIDC_PROVIDERS } from '../lib/oidc-config.js';
+import supabase from '../lib/supabase.js';
+import { getUserProfile } from './db-service.js';
 
 class AuthService {
   constructor() {
     this.clients = {};
     this.currentUser = null;
     this.listeners = new Set();
-    
+
     // Initialize OIDC clients for each provider
     Object.keys(OIDC_PROVIDERS).forEach(providerId => {
       this.clients[providerId] = new OIDCClient(providerId);
@@ -17,8 +19,37 @@ class AuthService {
   }
 
   // Initialize session from stored data
-  initializeSession() {
-    // Check all providers for an existing session
+  async initializeSession() {
+    // First check Supabase session
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (session) {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (user) {
+        try {
+          // Get additional profile data if needed
+          const profile = await getUserProfile(user.id);
+          
+          this.currentUser = {
+            id: user.id,
+            email: user.email,
+            name: user.user_metadata?.full_name || user.user_metadata?.name || user.email,
+            avatar: user.user_metadata?.avatar_url,
+            provider: 'github',
+            profile: profile || {},
+            createdAt: user.created_at
+          };
+          
+          this.notifyListeners();
+          return;
+        } catch (error) {
+          console.error('Error getting user profile:', error);
+        }
+      }
+    }
+
+    // Fallback to OIDC clients if Supabase auth fails
     for (const [providerId, client] of Object.entries(this.clients)) {
       if (client.isAuthenticated()) {
         this.currentUser = client.getCurrentUser();
@@ -45,15 +76,28 @@ class AuthService {
     });
   }
 
-  // Sign in with specified provider
+  // Sign in with GitHub through Supabase
   async signIn(providerId) {
     try {
-      const client = this.clients[providerId];
-      if (!client) {
-        throw new Error(`Unknown provider: ${providerId}`);
+      if (providerId === 'github') {
+        const { data, error } = await supabase.auth.signInWithOAuth({
+          provider: 'github',
+          options: {
+            redirectTo: `${window.location.origin}/auth/callback/github`
+          }
+        });
+        
+        if (error) throw error;
+        return data;
+      } else {
+        // Fallback to OIDC client
+        const client = this.clients[providerId];
+        if (!client) {
+          throw new Error(`Unknown provider: ${providerId}`);
+        }
+        
+        await client.authorize();
       }
-
-      await client.authorize();
     } catch (error) {
       console.error(`Sign in failed for ${providerId}:`, error);
       throw error;
@@ -63,16 +107,44 @@ class AuthService {
   // Handle OAuth callback
   async handleCallback(providerId, searchParams) {
     try {
-      const client = this.clients[providerId];
-      if (!client) {
-        throw new Error(`Unknown provider: ${providerId}`);
+      if (providerId === 'github') {
+        // Get session from URL
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) throw error;
+        if (!session) throw new Error('No session found after authentication');
+        
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (!user) throw new Error('No user found after authentication');
+        
+        // Get or create user profile
+        let profile = await getUserProfile(user.id);
+        
+        this.currentUser = {
+          id: user.id,
+          email: user.email,
+          name: user.user_metadata?.full_name || user.user_metadata?.name || user.email,
+          avatar: user.user_metadata?.avatar_url,
+          provider: 'github',
+          profile: profile || {},
+          createdAt: user.created_at
+        };
+        
+        this.notifyListeners();
+        return this.currentUser;
+      } else {
+        // Fallback to OIDC client
+        const client = this.clients[providerId];
+        if (!client) {
+          throw new Error(`Unknown provider: ${providerId}`);
+        }
+        
+        const user = await client.handleCallback(searchParams);
+        this.currentUser = user;
+        this.notifyListeners();
+        return user;
       }
-
-      const user = await client.handleCallback(searchParams);
-      this.currentUser = user;
-      this.notifyListeners();
-      
-      return user;
     } catch (error) {
       console.error(`Callback handling failed for ${providerId}:`, error);
       throw error;
@@ -82,15 +154,19 @@ class AuthService {
   // Sign out current user
   async signOut() {
     try {
-      if (this.currentUser) {
+      // First try Supabase signout
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      
+      // Also sign out from OIDC if needed
+      if (this.currentUser && this.currentUser.provider && this.currentUser.provider !== 'github') {
         const providerId = this.currentUser.provider;
         const client = this.clients[providerId];
-        
         if (client) {
           await client.signOut();
         }
       }
-
+      
       this.currentUser = null;
       this.notifyListeners();
     } catch (error) {
@@ -106,42 +182,7 @@ class AuthService {
 
   // Check if user is authenticated
   isAuthenticated() {
-    return !!this.currentUser && this.validateCurrentSession();
-  }
-
-  // Validate current session
-  validateCurrentSession() {
-    if (!this.currentUser) return false;
-
-    const providerId = this.currentUser.provider;
-    const client = this.clients[providerId];
-    
-    return client ? client.isAuthenticated() : false;
-  }
-
-  // Refresh authentication token
-  async refreshToken() {
-    if (!this.currentUser) return false;
-
-    try {
-      const providerId = this.currentUser.provider;
-      const client = this.clients[providerId];
-      
-      if (!client) return false;
-
-      const isValid = await client.validateAndRefreshToken();
-      if (!isValid) {
-        this.currentUser = null;
-        this.notifyListeners();
-      }
-      
-      return isValid;
-    } catch (error) {
-      console.error('Token refresh failed:', error);
-      this.currentUser = null;
-      this.notifyListeners();
-      return false;
-    }
+    return !!this.currentUser;
   }
 
   // Get user permissions/roles
@@ -150,16 +191,12 @@ class AuthService {
 
     // Basic permissions based on provider
     const basePermissions = ['read', 'write'];
-    
+
     // Add provider-specific permissions
     if (this.currentUser.provider === 'github') {
       basePermissions.push('repo_access', 'code_review');
     }
     
-    if (this.currentUser.provider === 'netlify') {
-      basePermissions.push('deploy', 'site_management');
-    }
-
     return basePermissions;
   }
 
@@ -187,32 +224,16 @@ class AuthService {
       provider: this.currentUser?.provider || 'none',
       details,
       userAgent: navigator.userAgent,
-      ip: 'client-side' // Would need server-side implementation for real IP
     };
 
     // Log to console in development
     if (import.meta.env.DEV) {
       console.log('Security Event:', logEntry);
     }
-
-    // In production, send to security monitoring service
-    // this.sendToSecurityService(logEntry);
-  }
-
-  // Validate session periodically
-  startSessionValidation() {
-    setInterval(async () => {
-      if (this.isAuthenticated()) {
-        await this.refreshToken();
-      }
-    }, 60000); // Check every minute
   }
 }
 
 // Create singleton instance
 const authService = new AuthService();
-
-// Start session validation
-authService.startSessionValidation();
 
 export default authService;

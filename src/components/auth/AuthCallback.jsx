@@ -5,6 +5,7 @@ import SafeIcon from '../../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
 import authService from '../../services/auth-service.js';
 import toast from 'react-hot-toast';
+import supabase from '../../lib/supabase.js';
 
 const { FiLoader, FiCheckCircle, FiXCircle } = FiIcons;
 
@@ -19,22 +20,45 @@ function AuthCallback() {
     const handleCallback = async () => {
       try {
         const searchParams = new URLSearchParams(location.search);
+        
+        // For GitHub auth via Supabase
+        if (provider === 'github') {
+          // The hash contains the access token
+          if (window.location.hash) {
+            // Supabase handles this automatically, just get the session
+            const { data: { session }, error } = await supabase.auth.getSession();
+            
+            if (error) throw error;
+            if (!session) throw new Error('No session found after authentication');
+            
+            const { data: { user } } = await supabase.auth.getUser();
+            
+            setStatus('success');
+            setMessage(`Welcome back, ${user.user_metadata?.name || user.email}!`);
+            toast.success(`Successfully signed in with ${provider}`);
+            
+            // Redirect to dashboard after a short delay
+            setTimeout(() => {
+              navigate('/');
+            }, 2000);
+            return;
+          }
+        }
+        
+        // Fallback to OIDC for other providers
         const user = await authService.handleCallback(provider, searchParams);
         
         setStatus('success');
         setMessage(`Welcome back, ${user.name}!`);
-        
         toast.success(`Successfully signed in with ${provider}`);
         
         // Redirect to dashboard after a short delay
         setTimeout(() => {
           navigate('/');
         }, 2000);
-        
       } catch (error) {
         setStatus('error');
         setMessage(error.message || 'Authentication failed');
-        
         toast.error(`Authentication failed: ${error.message}`);
         
         // Redirect to login after a short delay
@@ -83,24 +107,20 @@ function AuthCallback() {
         <div className="mb-6">
           {getStatusIcon()}
         </div>
-        
         <h1 className="text-2xl font-bold text-dark-800 mb-4">
           {status === 'processing' && 'Authenticating...'}
           {status === 'success' && 'Success!'}
           {status === 'error' && 'Authentication Failed'}
         </h1>
-        
         <p className={`text-lg mb-6 ${getStatusColor()}`}>
           {message}
         </p>
-        
         {status === 'success' && (
           <div className="flex items-center justify-center space-x-2 text-sm text-gray-600">
             <SafeIcon icon={FiLoader} className="animate-spin" />
             <span>Redirecting to dashboard...</span>
           </div>
         )}
-        
         {status === 'error' && (
           <div className="space-y-4">
             <button
