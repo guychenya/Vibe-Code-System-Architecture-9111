@@ -1,102 +1,28 @@
-import OIDCClient from '../lib/oidc-client.js';
-import { OIDC_PROVIDERS } from '../lib/oidc-config.js';
 import supabase from '../lib/supabase.js';
-import { getUserProfile } from './db-service.js';
 
 class AuthService {
   constructor() {
-    this.clients = {};
-    this.currentUser = null;
-    this.listeners = new Set();
-
-    // Initialize OIDC clients for each provider
-    Object.keys(OIDC_PROVIDERS).forEach(providerId => {
-      this.clients[providerId] = new OIDCClient(providerId);
-    });
-
-    // Check for existing session on initialization
-    this.initializeSession();
+    this.securityEvents = [];
+    this.authListeners = [];
   }
 
-  // Initialize session from stored data
-  async initializeSession() {
-    // First check Supabase session
-    const { data: { session } } = await supabase.auth.getSession();
-    
-    if (session) {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (user) {
-        try {
-          // Get additional profile data if needed
-          const profile = await getUserProfile(user.id);
-          
-          this.currentUser = {
-            id: user.id,
-            email: user.email,
-            name: user.user_metadata?.full_name || user.user_metadata?.name || user.email,
-            avatar: user.user_metadata?.avatar_url,
-            provider: 'github',
-            profile: profile || {},
-            createdAt: user.created_at
-          };
-          
-          this.notifyListeners();
-          return;
-        } catch (error) {
-          console.error('Error getting user profile:', error);
-        }
-      }
-    }
-
-    // Fallback to OIDC clients if Supabase auth fails
-    for (const [providerId, client] of Object.entries(this.clients)) {
-      if (client.isAuthenticated()) {
-        this.currentUser = client.getCurrentUser();
-        this.notifyListeners();
-        break;
-      }
-    }
-  }
-
-  // Add authentication state listener
-  addAuthListener(listener) {
-    this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
-  }
-
-  // Notify all listeners of auth state changes
-  notifyListeners() {
-    this.listeners.forEach(listener => {
-      try {
-        listener(this.currentUser);
-      } catch (error) {
-        console.error('Auth listener error:', error);
-      }
-    });
-  }
-
-  // Sign in with GitHub through Supabase
+  // Sign in with provider
   async signIn(providerId) {
     try {
       if (providerId === 'github') {
+        // Use Supabase auth for GitHub with Netlify URL
         const { data, error } = await supabase.auth.signInWithOAuth({
           provider: 'github',
           options: {
-            redirectTo: `${window.location.origin}/auth/callback/github`
+            redirectTo: 'https://tubular-sunshine-555194.netlify.app/auth/callback/github',
+            scopes: 'user:email read:user'
           }
         });
         
         if (error) throw error;
         return data;
       } else {
-        // Fallback to OIDC client
-        const client = this.clients[providerId];
-        if (!client) {
-          throw new Error(`Unknown provider: ${providerId}`);
-        }
-        
-        await client.authorize();
+        throw new Error(`Provider ${providerId} is not supported yet`);
       }
     } catch (error) {
       console.error(`Sign in failed for ${providerId}:`, error);
@@ -104,46 +30,32 @@ class AuthService {
     }
   }
 
-  // Handle OAuth callback
+  // Handle callback from OAuth provider
   async handleCallback(providerId, searchParams) {
     try {
       if (providerId === 'github') {
-        // Get session from URL
+        // For GitHub, Supabase handles the callback automatically
+        // We just need to get the session
         const { data: { session }, error } = await supabase.auth.getSession();
         
         if (error) throw error;
         if (!session) throw new Error('No session found after authentication');
-        
+
         const { data: { user } } = await supabase.auth.getUser();
         
         if (!user) throw new Error('No user found after authentication');
-        
-        // Get or create user profile
-        let profile = await getUserProfile(user.id);
-        
-        this.currentUser = {
+
+        // Return user info
+        return {
           id: user.id,
           email: user.email,
           name: user.user_metadata?.full_name || user.user_metadata?.name || user.email,
           avatar: user.user_metadata?.avatar_url,
           provider: 'github',
-          profile: profile || {},
           createdAt: user.created_at
         };
-        
-        this.notifyListeners();
-        return this.currentUser;
       } else {
-        // Fallback to OIDC client
-        const client = this.clients[providerId];
-        if (!client) {
-          throw new Error(`Unknown provider: ${providerId}`);
-        }
-        
-        const user = await client.handleCallback(searchParams);
-        this.currentUser = user;
-        this.notifyListeners();
-        return user;
+        throw new Error(`Provider ${providerId} is not supported yet`);
       }
     } catch (error) {
       console.error(`Callback handling failed for ${providerId}:`, error);
@@ -151,24 +63,20 @@ class AuthService {
     }
   }
 
-  // Sign out current user
+  // Sign out
   async signOut() {
     try {
-      // First try Supabase signout
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
+      // Sign out from Supabase
+      await supabase.auth.signOut();
       
-      // Also sign out from OIDC if needed
-      if (this.currentUser && this.currentUser.provider && this.currentUser.provider !== 'github') {
-        const providerId = this.currentUser.provider;
-        const client = this.clients[providerId];
-        if (client) {
-          await client.signOut();
-        }
-      }
+      // Clear any local session storage
+      localStorage.removeItem('user_session');
+      sessionStorage.removeItem('user_session');
       
-      this.currentUser = null;
-      this.notifyListeners();
+      // Notify listeners
+      this.authListeners.forEach(callback => callback(null));
+      
+      return true;
     } catch (error) {
       console.error('Sign out failed:', error);
       throw error;
@@ -177,63 +85,123 @@ class AuthService {
 
   // Get current user
   getCurrentUser() {
-    return this.currentUser;
+    try {
+      // Check local storage first for cached user
+      const storedUser = localStorage.getItem('user_session') || sessionStorage.getItem('user_session');
+      if (storedUser) {
+        try {
+          return JSON.parse(storedUser);
+        } catch (parseError) {
+          console.error('Error parsing stored user:', parseError);
+          // Clear invalid stored data
+          localStorage.removeItem('user_session');
+          sessionStorage.removeItem('user_session');
+        }
+      }
+      
+      // No user found
+      return null;
+    } catch (error) {
+      console.error('Error getting current user:', error);
+      return null;
+    }
   }
 
   // Check if user is authenticated
   isAuthenticated() {
-    return !!this.currentUser;
+    const user = this.getCurrentUser();
+    return !!user;
   }
 
-  // Get user permissions/roles
-  getUserPermissions() {
-    if (!this.currentUser) return [];
-
-    // Basic permissions based on provider
-    const basePermissions = ['read', 'write'];
-
-    // Add provider-specific permissions
-    if (this.currentUser.provider === 'github') {
-      basePermissions.push('repo_access', 'code_review');
-    }
-    
-    return basePermissions;
-  }
-
-  // Check if user has specific permission
+  // Check if user has permission
   hasPermission(permission) {
-    const permissions = this.getUserPermissions();
-    return permissions.includes(permission);
+    const user = this.getCurrentUser();
+    if (!user) return false;
+
+    // Simple role-based permission check
+    const userRole = user.role || 'user';
+
+    // Define role hierarchy
+    const roles = {
+      admin: ['admin', 'editor', 'user'],
+      editor: ['editor', 'user'],
+      user: ['user']
+    };
+
+    // Check if the user's role has the required permission
+    return roles[userRole] && roles[userRole].includes(permission);
   }
 
   // Get available providers
   getAvailableProviders() {
-    return Object.keys(OIDC_PROVIDERS).map(id => ({
-      id,
-      name: OIDC_PROVIDERS[id].name,
-      logo: OIDC_PROVIDERS[id].logo
-    }));
+    return [
+      { id: 'github', name: 'GitHub' }
+    ];
   }
 
-  // Security audit log
-  logSecurityEvent(event, details = {}) {
-    const logEntry = {
+  // Log security event
+  logSecurityEvent(eventType, details = {}) {
+    const event = {
+      type: eventType,
       timestamp: new Date().toISOString(),
-      event,
-      user: this.currentUser?.id || 'anonymous',
-      provider: this.currentUser?.provider || 'none',
-      details,
-      userAgent: navigator.userAgent,
+      userId: this.getCurrentUser()?.id,
+      ...details
     };
 
-    // Log to console in development
-    if (import.meta.env.DEV) {
-      console.log('Security Event:', logEntry);
+    this.securityEvents.push(event);
+    console.log('Security event:', event);
+
+    // Keep only last 100 events to prevent memory issues
+    if (this.securityEvents.length > 100) {
+      this.securityEvents = this.securityEvents.slice(-100);
     }
+
+    return event;
+  }
+
+  // Add auth state change listener
+  addAuthListener(callback) {
+    this.authListeners.push(callback);
+
+    // Set up Supabase auth listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session?.user) {
+        const user = {
+          id: session.user.id,
+          email: session.user.email,
+          name: session.user.user_metadata?.full_name || session.user.user_metadata?.name || session.user.email,
+          avatar: session.user.user_metadata?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(session.user.user_metadata?.full_name || session.user.email)}&background=0ea5e9&color=fff`,
+          provider: session.user.app_metadata?.provider || 'email',
+          role: session.user.role || 'user',
+          createdAt: session.user.created_at
+        };
+
+        // Store user in local storage
+        localStorage.setItem('user_session', JSON.stringify(user));
+
+        // Notify all listeners
+        this.authListeners.forEach(cb => cb(user));
+      } else if (event === 'SIGNED_OUT') {
+        // Clear stored user
+        localStorage.removeItem('user_session');
+        sessionStorage.removeItem('user_session');
+
+        // Notify all listeners
+        this.authListeners.forEach(cb => cb(null));
+      }
+    });
+
+    // Return unsubscribe function
+    return () => {
+      const index = this.authListeners.indexOf(callback);
+      if (index > -1) {
+        this.authListeners.splice(index, 1);
+      }
+      subscription.unsubscribe();
+    };
   }
 }
 
-// Create singleton instance
+// Export singleton instance
 const authService = new AuthService();
-
 export default authService;

@@ -1,11 +1,12 @@
-// OIDC Configuration for GitHub and Netlify
+// OIDC Configuration for GitHub
 export const OIDC_PROVIDERS = {
   github: {
     name: 'GitHub',
     authority: 'https://github.com',
     client_id: import.meta.env.VITE_GITHUB_CLIENT_ID || 'your-github-client-id',
     client_secret: import.meta.env.VITE_GITHUB_CLIENT_SECRET || 'your-github-client-secret',
-    redirect_uri: `${window.location.origin}/auth/callback/github`,
+    // Updated redirect URI to match Netlify deployment
+    redirect_uri: `https://tubular-sunshine-555194.netlify.app/auth/callback/github`,
     scope: 'user:email read:user',
     response_type: 'code',
     authorization_endpoint: 'https://github.com/login/oauth/authorize',
@@ -15,25 +16,9 @@ export const OIDC_PROVIDERS = {
   }
 };
 
-// Security configuration
 export const SECURITY_CONFIG = {
-  tokenStorage: 'sessionStorage', // or 'localStorage'
-  encryptTokens: true,
+  tokenStorage: 'localStorage',
+  encryptTokens: false,
   sessionTimeout: 30 * 60 * 1000, // 30 minutes
-  refreshTokenThreshold: 5 * 60 * 1000, // 5 minutes before expiry
-  csrfProtection: true,
-  secureHeaders: {
-    'X-Content-Type-Options': 'nosniff',
-    'X-Frame-Options': 'DENY',
-    'X-XSS-Protection': '1; mode=block',
-    'Strict-Transport-Security': 'max-age=31536000; includeSubDomains'
-  }
-};
-
-// JWT configuration
-export const JWT_CONFIG = {
-  algorithm: 'HS256',
-  expiresIn: '1h',
-  issuer: 'vibe-code-system',
-  audience: 'vibe-code-users'
+  refreshTokenThreshold: 5 * 60 * 1000 // 5 minutes
 };
