@@ -20,7 +20,13 @@ const {
   FiMapPin,
   FiCalendar,
   FiCheck,
-  FiX
+  FiX,
+  FiKey,
+  FiLock,
+  FiEye,
+  FiEyeOff,
+  FiCloud,
+  FiCpu
 } = FiIcons;
 
 function Settings() {
@@ -72,8 +78,41 @@ function Settings() {
     }
   });
 
+  // Added API key state
+  const [apiKeys, setApiKeys] = useState({
+    openai: {
+      key: localStorage.getItem('openai_api_key') || '',
+      isVisible: false,
+      label: 'OpenAI API Key',
+      description: 'Powers ChatGPT, GPT-4, and other OpenAI models',
+      icon: FiCloud
+    },
+    anthropic: {
+      key: localStorage.getItem('anthropic_api_key') || '',
+      isVisible: false,
+      label: 'Anthropic API Key',
+      description: 'Powers Claude models for natural conversations',
+      icon: FiCpu
+    },
+    google: {
+      key: localStorage.getItem('google_api_key') || '',
+      isVisible: false,
+      label: 'Google AI API Key',
+      description: 'Powers Gemini models for advanced AI responses',
+      icon: FiGlobe
+    },
+    huggingface: {
+      key: localStorage.getItem('huggingface_api_key') || '',
+      isVisible: false,
+      label: 'Hugging Face API Key',
+      description: 'Access to open-source models and embeddings',
+      icon: FiDatabase
+    }
+  });
+
   const tabs = [
     { id: 'profile', label: 'Profile', icon: FiUser },
+    { id: 'api_keys', label: 'API Keys', icon: FiKey },
     { id: 'notifications', label: 'Notifications', icon: FiBell },
     { id: 'security', label: 'Security', icon: FiShield },
     { id: 'integrations', label: 'Integrations', icon: FiDatabase },
@@ -81,7 +120,36 @@ function Settings() {
   ];
 
   const handleSave = () => {
+    // Save API keys to localStorage
+    Object.entries(apiKeys).forEach(([provider, data]) => {
+      if (data.key) {
+        localStorage.setItem(`${provider}_api_key`, data.key);
+      } else {
+        localStorage.removeItem(`${provider}_api_key`);
+      }
+    });
+    
     toast.success('Settings saved successfully!');
+  };
+
+  const toggleApiKeyVisibility = (provider) => {
+    setApiKeys(prev => ({
+      ...prev,
+      [provider]: {
+        ...prev[provider],
+        isVisible: !prev[provider].isVisible
+      }
+    }));
+  };
+
+  const handleApiKeyChange = (provider, value) => {
+    setApiKeys(prev => ({
+      ...prev,
+      [provider]: {
+        ...prev[provider],
+        key: value
+      }
+    }));
   };
 
   const handleToggleNotification = (key) => {
@@ -146,7 +214,7 @@ function Settings() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
           <input
@@ -167,7 +235,7 @@ function Settings() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Role</label>
           <select
@@ -192,7 +260,7 @@ function Settings() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Location</label>
           <input
@@ -238,6 +306,72 @@ function Settings() {
           <option value="Europe/Paris">Central European Time (CET)</option>
           <option value="Asia/Tokyo">Japan Standard Time (JST)</option>
         </select>
+      </div>
+    </div>
+  );
+
+  // New API Keys tab
+  const renderApiKeysTab = () => (
+    <div className="space-y-6">
+      <div>
+        <div className="flex items-center mb-4">
+          <SafeIcon icon={FiKey} className="text-primary-600 mr-2" />
+          <h3 className="text-lg font-semibold text-dark-800">AI Service API Keys</h3>
+        </div>
+        <p className="text-gray-600 mb-6">
+          Add your API keys to enable AI chat functionality. Your keys are securely stored in your browser's local storage and never sent to our servers.
+        </p>
+        
+        <div className="space-y-5">
+          {Object.entries(apiKeys).map(([provider, data]) => (
+            <div key={provider} className="p-5 bg-gray-50 rounded-xl border border-gray-200">
+              <div className="flex items-start">
+                <div className="p-2 bg-primary-100 rounded-lg mr-3">
+                  <SafeIcon icon={data.icon} className="text-primary-600" />
+                </div>
+                <div className="flex-1">
+                  <h4 className="font-medium text-dark-800 mb-1">{data.label}</h4>
+                  <p className="text-sm text-gray-600 mb-3">{data.description}</p>
+                  
+                  <div className="relative">
+                    <input
+                      type={data.isVisible ? "text" : "password"}
+                      value={data.key}
+                      onChange={(e) => handleApiKeyChange(provider, e.target.value)}
+                      placeholder={`Enter your ${data.label.split(' ')[0]} API key`}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg pr-10 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    />
+                    <button 
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                      onClick={() => toggleApiKeyVisibility(provider)}
+                    >
+                      <SafeIcon icon={data.isVisible ? FiEyeOff : FiEye} />
+                    </button>
+                  </div>
+
+                  {data.key && (
+                    <div className="mt-2 text-sm text-green-600 flex items-center">
+                      <SafeIcon icon={FiCheck} className="mr-1" />
+                      <span>API key saved</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+      
+      <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg mt-6">
+        <div className="flex">
+          <SafeIcon icon={FiShield} className="text-blue-600 mr-2 mt-0.5" />
+          <div>
+            <h4 className="font-medium text-blue-800 mb-1">Security Information</h4>
+            <p className="text-sm text-blue-700">
+              Your API keys are stored securely in your browser's local storage and are only used to make requests to the respective AI services. We never store or transmit your API keys to our servers.
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -326,7 +460,7 @@ function Settings() {
       </div>
 
       <div className="pt-4 border-t border-gray-200">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Session Timeout (minutes)</label>
             <select
@@ -479,6 +613,7 @@ function Settings() {
   const renderTabContent = () => {
     switch (activeTab) {
       case 'profile': return renderProfileTab();
+      case 'api_keys': return renderApiKeysTab();
       case 'notifications': return renderNotificationsTab();
       case 'security': return renderSecurityTab();
       case 'integrations': return renderIntegrationsTab();

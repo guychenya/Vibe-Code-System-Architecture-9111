@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import SafeIcon from '../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
@@ -27,31 +27,193 @@ const {
   FiX,
   FiSettings,
   FiCheck,
-  FiLightbulb
+  FiLightbulb,
+  FiLoader,
+  FiCode,
+  FiAlertCircle
 } = FiIcons;
+
+// Service-specific API request functions
+const aiServices = {
+  openai: async (message, options = {}) => {
+    const apiKey = localStorage.getItem('openai_api_key');
+    if (!apiKey) {
+      throw new Error('OpenAI API key not found. Please add it in Settings > API Keys.');
+    }
+
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: options.model || 'gpt-3.5-turbo',
+        messages: [
+          { role: 'system', content: 'You are a helpful AI programming assistant that specializes in coding advice and software development.' },
+          { role: 'user', content: message }
+        ],
+        max_tokens: options.maxTokens || 500,
+        temperature: options.temperature || 0.7
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error?.message || 'Failed to get response from OpenAI');
+    }
+
+    const data = await response.json();
+    return data.choices[0].message.content;
+  },
+
+  anthropic: async (message, options = {}) => {
+    const apiKey = localStorage.getItem('anthropic_api_key');
+    if (!apiKey) {
+      throw new Error('Anthropic API key not found. Please add it in Settings > API Keys.');
+    }
+
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: options.model || 'claude-2',
+        messages: [
+          { role: 'user', content: message }
+        ],
+        max_tokens: options.maxTokens || 500
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error?.message || 'Failed to get response from Anthropic');
+    }
+
+    const data = await response.json();
+    return data.content[0].text;
+  },
+
+  google: async (message, options = {}) => {
+    const apiKey = localStorage.getItem('google_api_key');
+    if (!apiKey) {
+      throw new Error('Google AI API key not found. Please add it in Settings > API Keys.');
+    }
+
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [
+              { text: message }
+            ]
+          }
+        ],
+        generationConfig: {
+          temperature: options.temperature || 0.7,
+          maxOutputTokens: options.maxTokens || 500
+        }
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error?.message || 'Failed to get response from Google AI');
+    }
+
+    const data = await response.json();
+    return data.candidates[0].content.parts[0].text;
+  },
+
+  huggingface: async (message, options = {}) => {
+    const apiKey = localStorage.getItem('huggingface_api_key');
+    if (!apiKey) {
+      throw new Error('Hugging Face API key not found. Please add it in Settings > API Keys.');
+    }
+
+    const response = await fetch('https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.1', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        inputs: message,
+        parameters: {
+          max_new_tokens: options.maxTokens || 500,
+          temperature: options.temperature || 0.7
+        }
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to get response from Hugging Face');
+    }
+
+    const data = await response.json();
+    return data[0].generated_text;
+  }
+};
+
+// Predefined AI providers
+const aiProvidersList = [
+  {
+    id: 'openai',
+    name: 'OpenAI',
+    icon: 'FiCloud',
+    models: ['gpt-3.5-turbo', 'gpt-4'],
+    description: 'ChatGPT and GPT-4 models',
+    color: 'bg-green-600'
+  },
+  {
+    id: 'anthropic',
+    name: 'Anthropic',
+    icon: 'FiCloudLightning',
+    models: ['claude-2', 'claude-instant-1'],
+    description: 'Claude AI models',
+    color: 'bg-purple-600'
+  },
+  {
+    id: 'google',
+    name: 'Google AI',
+    icon: 'FiGlobe',
+    models: ['gemini-pro'],
+    description: 'Gemini models',
+    color: 'bg-blue-600'
+  },
+  {
+    id: 'huggingface',
+    name: 'Hugging Face',
+    icon: 'FiCpu',
+    models: ['mistral-7b-instruct'],
+    description: 'Open source models',
+    color: 'bg-yellow-600'
+  }
+];
 
 function Chat() {
   const { projects } = useProjectStore();
   const [selectedProject, setSelectedProject] = useState(projects[0]?.id || '');
   const [message, setMessage] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState(null);
+  const [selectedModel, setSelectedModel] = useState('');
   const [showProviderSettings, setShowProviderSettings] = useState(false);
-  const [providerConfig, setProviderConfig] = useState({
-    apiKey: '',
-    baseUrl: '',
-    models: []
-  });
+  const [showModelSelection, setShowModelSelection] = useState(false);
+  const messagesEndRef = useRef(null);
   
-  // Fetch LLM providers from Supabase
-  const { 
-    data: providers,
-    loading: loadingProviders,
-    update: updateProvider
-  } = useSupabase('llm_providers_ax72p9', {
-    select: '*',
-    realtime: true
-  });
-
+  // Fetch LLM providers from localStorage (API keys)
+  const [providers, setProviders] = useState([]);
+  
   // Simulated messages for demo
   const [messages, setMessages] = useState([
     {
@@ -74,27 +236,6 @@ function Chat() {
         type: 'pdf',
         size: '2.3 MB'
       }
-    },
-    {
-      id: '3',
-      sender: 'Mike Johnson',
-      avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=40&h=40&fit=crop&crop=face',
-      message: 'The payment flow looks good, but I noticed a small issue with the error handling. I\'ll create a ticket for it.',
-      timestamp: new Date('2024-01-15T11:00:00'),
-      type: 'text'
-    },
-    {
-      id: '4',
-      sender: 'Alice Brown',
-      avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=40&h=40&fit=crop&crop=face',
-      message: 'Here\'s the mockup for the new dashboard design',
-      timestamp: new Date('2024-01-15T11:15:00'),
-      type: 'image',
-      attachment: {
-        name: 'dashboard_mockup.png',
-        type: 'image',
-        url: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=400&h=300&fit=crop'
-      }
     }
   ]);
 
@@ -103,40 +244,104 @@ function Chat() {
     avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=40&h=40&fit=crop&crop=face'
   };
 
-  const handleSendMessage = () => {
-    if (!message.trim()) return;
+  useEffect(() => {
+    // Scroll to bottom whenever messages change
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
-    const newMessage = {
+  useEffect(() => {
+    // Check which providers have API keys
+    const availableProviders = aiProvidersList.map(provider => {
+      const apiKey = localStorage.getItem(`${provider.id}_api_key`);
+      return {
+        ...provider,
+        is_connected: !!apiKey
+      };
+    });
+    
+    setProviders(availableProviders);
+  }, []);
+
+  const handleSendMessage = async () => {
+    if (!message.trim()) return;
+    
+    // Add user message
+    const userMessage = {
       id: Date.now().toString(),
       sender: currentUser.name,
       avatar: currentUser.avatar,
       message: message,
       timestamp: new Date(),
-      type: 'text',
-      provider: selectedProvider
+      type: 'text'
     };
-
-    setMessages([...messages, newMessage]);
+    
+    setMessages(prev => [...prev, userMessage]);
+    
+    const currentMessage = message;
     setMessage('');
-    toast.success('Message sent!');
-
-    // Simulate AI response if provider is selected
+    
+    // If AI provider is selected, get a response
     if (selectedProvider) {
-      setTimeout(() => {
-        const aiProvider = providers.find(p => p.id === selectedProvider);
-        
-        const aiMessage = {
-          id: Date.now().toString() + '-ai',
-          sender: aiProvider.name,
-          avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(aiProvider.name)}&background=0ea5e9&color=fff`,
-          message: `This is a simulated response from ${aiProvider.name}. In a real implementation, this would come from the actual AI provider's API.`,
+      setIsTyping(true);
+      const provider = providers.find(p => p.id === selectedProvider);
+      
+      // Add a placeholder for the AI response
+      const aiPlaceholderId = Date.now().toString() + '-ai';
+      
+      setMessages(prev => [
+        ...prev, 
+        {
+          id: aiPlaceholderId,
+          sender: provider.name,
+          avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(provider.name)}&background=0ea5e9&color=fff`,
+          message: '...',
           timestamp: new Date(),
           type: 'text',
-          isAI: true
-        };
+          isAI: true,
+          isLoading: true
+        }
+      ]);
+      
+      try {
+        // Call the appropriate AI service
+        const aiService = aiServices[provider.id];
+        const response = await aiService(currentMessage, { 
+          model: selectedModel || provider.models[0],
+          maxTokens: 1000
+        });
         
-        setMessages(prev => [...prev, aiMessage]);
-      }, 1000);
+        // Replace the placeholder with the actual response
+        setMessages(prev => prev.map(msg => 
+          msg.id === aiPlaceholderId 
+            ? {
+                ...msg,
+                message: response,
+                timestamp: new Date(),
+                isLoading: false
+              }
+            : msg
+        ));
+        
+      } catch (error) {
+        console.error('AI response error:', error);
+        
+        // Update placeholder with error message
+        setMessages(prev => prev.map(msg => 
+          msg.id === aiPlaceholderId 
+            ? {
+                ...msg,
+                message: `Error: ${error.message}`,
+                timestamp: new Date(),
+                isLoading: false,
+                isError: true
+              }
+            : msg
+        ));
+        
+        toast.error(error.message);
+      } finally {
+        setIsTyping(false);
+      }
     }
   };
 
@@ -147,77 +352,6 @@ function Chat() {
     }
   };
 
-  const handleConnectProvider = async (providerId) => {
-    const provider = providers.find(p => p.id === providerId);
-    
-    if (provider.type === 'local' && provider.name === 'Ollama') {
-      // Simulate connecting to local Ollama
-      toast.promise(
-        new Promise((resolve) => {
-          setTimeout(() => {
-            updateProvider(providerId, { 
-              is_connected: true,
-              base_url: providerConfig.baseUrl || 'http://localhost:11434'
-            });
-            resolve();
-          }, 1500);
-        }),
-        {
-          loading: 'Connecting to Ollama...',
-          success: 'Successfully connected to Ollama',
-          error: 'Failed to connect to Ollama'
-        }
-      );
-    } else {
-      // For remote providers, check API key
-      if (!providerConfig.apiKey) {
-        toast.error('API Key is required');
-        return;
-      }
-      
-      toast.promise(
-        new Promise((resolve) => {
-          setTimeout(() => {
-            updateProvider(providerId, { 
-              is_connected: true,
-              api_key: '••••••••' + providerConfig.apiKey.slice(-4) // Store masked version for UI
-            });
-            resolve();
-          }, 1500);
-        }),
-        {
-          loading: `Connecting to ${provider.name}...`,
-          success: `Successfully connected to ${provider.name}`,
-          error: `Failed to connect to ${provider.name}`
-        }
-      );
-    }
-    
-    setShowProviderSettings(false);
-    setProviderConfig({ apiKey: '', baseUrl: '', models: [] });
-  };
-
-  const handleDisconnectProvider = async (providerId) => {
-    const provider = providers.find(p => p.id === providerId);
-    
-    toast.promise(
-      new Promise((resolve) => {
-        setTimeout(() => {
-          updateProvider(providerId, { is_connected: false });
-          if (selectedProvider === providerId) {
-            setSelectedProvider(null);
-          }
-          resolve();
-        }, 800);
-      }),
-      {
-        loading: `Disconnecting from ${provider.name}...`,
-        success: `Disconnected from ${provider.name}`,
-        error: `Failed to disconnect from ${provider.name}`
-      }
-    );
-  };
-
   const getProviderIcon = (type) => {
     switch (type) {
       case 'FiServer': return FiServer;
@@ -226,12 +360,32 @@ function Chat() {
       case 'FiZap': return FiZap;
       case 'FiBolt': return FiBolt;
       case 'FiCpu': return FiCpu;
+      case 'FiGlobe': return FiGlobe;
       case 'FiX': return FiX;
       default: return FiCloud;
     }
   };
 
   const selectedProjectData = projects.find(p => p.id === selectedProject);
+  
+  const handleSelectProvider = (providerId) => {
+    const provider = providers.find(p => p.id === providerId);
+    
+    if (!provider.is_connected) {
+      toast.error(`Please add your ${provider.name} API key in Settings > API Keys`);
+      return;
+    }
+    
+    if (selectedProvider === providerId) {
+      setSelectedProvider(null);
+      setSelectedModel('');
+      setShowModelSelection(false);
+    } else {
+      setSelectedProvider(providerId);
+      setSelectedModel(provider.models[0]);
+      setShowModelSelection(true);
+    }
+  };
 
   return (
     <div className="p-6 h-[calc(100vh-6rem)]">
@@ -269,59 +423,73 @@ function Chat() {
             </div>
           </div>
 
-          {/* LLM Provider Selection */}
+          {/* AI Provider Selection */}
           <div className="mt-4 pt-4 border-t border-gray-200">
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-sm font-medium text-gray-700">AI Assistants</h3>
               {selectedProvider && (
-                <button 
-                  onClick={() => setSelectedProvider(null)}
+                <button
+                  onClick={() => {
+                    setSelectedProvider(null);
+                    setSelectedModel('');
+                    setShowModelSelection(false);
+                  }}
                   className="text-xs text-gray-500 hover:text-gray-700"
                 >
                   Clear selection
                 </button>
               )}
             </div>
-            <div className="flex items-center space-x-2 overflow-x-auto pb-2">
-              {providers?.map(provider => (
-                <div 
+            
+            <div className="flex flex-wrap gap-2">
+              {providers.map(provider => (
+                <div
                   key={provider.id}
-                  onClick={() => provider.is_connected ? setSelectedProvider(provider.id === selectedProvider ? null : provider.id) : setShowProviderSettings(provider.id)}
+                  onClick={() => handleSelectProvider(provider.id)}
                   className={`flex items-center space-x-1 px-3 py-2 rounded-lg cursor-pointer transition-colors ${
-                    provider.id === selectedProvider 
-                      ? 'bg-primary-100 text-primary-700' 
-                      : provider.is_connected 
-                        ? 'bg-gray-100 hover:bg-gray-200 text-gray-700' 
+                    provider.id === selectedProvider
+                      ? 'bg-primary-100 text-primary-700'
+                      : provider.is_connected
+                        ? 'bg-gray-100 hover:bg-gray-200 text-gray-700'
                         : 'bg-gray-50 hover:bg-gray-100 text-gray-500'
                   }`}
                 >
                   <SafeIcon icon={getProviderIcon(provider.icon)} className="text-sm" />
                   <span className="text-sm whitespace-nowrap">{provider.name}</span>
                   <ConnectionIndicator isConnected={provider.is_connected} size="xs" />
-                  {provider.is_connected ? (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDisconnectProvider(provider.id);
-                      }}
-                      className="ml-1 text-xs text-gray-500 hover:text-red-500"
-                    >
-                      <SafeIcon icon={FiX} className="text-xs" />
-                    </button>
-                  ) : (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setShowProviderSettings(provider.id);
-                      }}
-                      className="ml-1 text-xs text-gray-500 hover:text-primary-500"
-                    >
-                      <SafeIcon icon={FiSettings} className="text-xs" />
-                    </button>
-                  )}
                 </div>
               ))}
+              
+              <button
+                onClick={() => window.location.href = '#/settings'}
+                className="flex items-center space-x-1 px-3 py-2 rounded-lg text-primary-600 border border-primary-200 hover:bg-primary-50"
+              >
+                <SafeIcon icon={FiSettings} className="text-sm" />
+                <span className="text-sm whitespace-nowrap">Manage API Keys</span>
+              </button>
             </div>
+            
+            {/* Model Selection */}
+            {showModelSelection && selectedProvider && (
+              <div className="mt-3">
+                <label className="text-xs text-gray-600 mb-1 block">Select Model:</label>
+                <div className="flex flex-wrap gap-2">
+                  {providers.find(p => p.id === selectedProvider)?.models.map(model => (
+                    <button
+                      key={model}
+                      onClick={() => setSelectedModel(model)}
+                      className={`px-3 py-1 text-xs rounded-full transition-colors ${
+                        selectedModel === model
+                          ? 'bg-primary-600 text-white'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      {model}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -340,7 +508,7 @@ function Chat() {
                 alt={msg.sender}
                 className="w-8 h-8 rounded-full object-cover"
               />
-              <div className={`flex-1 max-w-md ${msg.sender === currentUser.name ? 'text-right' : ''}`}>
+              <div className={`flex-1 max-w-xl ${msg.sender === currentUser.name ? 'text-right' : ''}`}>
                 <div className="flex items-center space-x-2 mb-1">
                   <span className="text-sm font-medium text-gray-800">{msg.sender}</span>
                   <span className="text-xs text-gray-500">
@@ -348,16 +516,27 @@ function Chat() {
                   </span>
                   {msg.isAI && <SafeIcon icon={FiLightbulb} className="text-xs text-green-500" />}
                 </div>
+                
                 <div
                   className={`inline-block p-3 rounded-lg ${
                     msg.sender === currentUser.name
                       ? 'bg-primary-600 text-white'
                       : msg.isAI
-                      ? 'bg-green-50 border border-green-200 text-gray-800'
-                      : 'bg-gray-100 text-gray-800'
+                        ? msg.isError
+                          ? 'bg-red-50 border border-red-200 text-gray-800'
+                          : 'bg-green-50 border border-green-200 text-gray-800'
+                        : 'bg-gray-100 text-gray-800'
                   }`}
                 >
-                  <p className="text-sm">{msg.message}</p>
+                  {msg.isLoading ? (
+                    <div className="flex items-center space-x-2">
+                      <SafeIcon icon={FiLoader} className="animate-spin text-sm" />
+                      <span>Thinking...</span>
+                    </div>
+                  ) : (
+                    <p className="text-sm whitespace-pre-wrap">{msg.message}</p>
+                  )}
+                  
                   {msg.attachment && (
                     <div className="mt-2 p-2 bg-white bg-opacity-20 rounded border border-white border-opacity-30">
                       {msg.attachment.type === 'image' ? (
@@ -377,10 +556,29 @@ function Chat() {
                       )}
                     </div>
                   )}
+                  
+                  {msg.isAI && msg.isError && (
+                    <div className="mt-2 flex items-center text-xs text-red-600">
+                      <SafeIcon icon={FiAlertCircle} className="mr-1" />
+                      <span>Error retrieving AI response</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </motion.div>
           ))}
+          
+          {/* Empty state */}
+          {messages.length === 0 && (
+            <div className="h-full flex flex-col items-center justify-center text-gray-400">
+              <SafeIcon icon={FiMessageCircle} className="text-5xl mb-4" />
+              <p className="text-lg mb-2">No messages yet</p>
+              <p className="text-sm">Start the conversation by sending a message</p>
+            </div>
+          )}
+          
+          {/* Invisible element to scroll to */}
+          <div ref={messagesEndRef} />
         </div>
 
         {/* Message Input */}
@@ -392,9 +590,10 @@ function Chat() {
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
                   onKeyPress={handleKeyPress}
-                  placeholder={selectedProvider 
-                    ? `Ask ${providers.find(p => p.id === selectedProvider)?.name} something...` 
-                    : "Type your message..."
+                  placeholder={
+                    selectedProvider
+                      ? `Ask ${providers.find(p => p.id === selectedProvider)?.name} something...`
+                      : "Type your message..."
                   }
                   rows="2"
                   className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"
@@ -411,10 +610,10 @@ function Chat() {
             </div>
             <button
               onClick={handleSendMessage}
-              disabled={!message.trim()}
+              disabled={!message.trim() || isTyping}
               className="p-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <SafeIcon icon={FiSend} />
+              {isTyping ? <SafeIcon icon={FiLoader} className="animate-spin" /> : <SafeIcon icon={FiSend} />}
             </button>
           </div>
           <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
@@ -424,7 +623,8 @@ function Chat() {
                 <div className="flex items-center space-x-1">
                   <span>Using:</span>
                   <span className="font-medium text-primary-600">
-                    {providers.find(p => p.id === selectedProvider)?.name}
+                    {providers.find(p => p.id === selectedProvider)?.name} 
+                    {selectedModel && ` (${selectedModel})`}
                   </span>
                   <ConnectionIndicator isConnected={true} size="xs" />
                 </div>
@@ -435,95 +635,6 @@ function Chat() {
           </div>
         </div>
       </motion.div>
-
-      {/* Provider Settings Modal */}
-      {showProviderSettings && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md mx-4"
-          >
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold text-dark-800">
-                Connect to {providers.find(p => p.id === showProviderSettings)?.name}
-              </h2>
-              <button
-                onClick={() => setShowProviderSettings(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <SafeIcon icon={FiX} />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              {providers.find(p => p.id === showProviderSettings)?.name === 'Ollama' ? (
-                // Ollama local setup
-                <>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Ollama Server URL
-                    </label>
-                    <input
-                      type="text"
-                      value={providerConfig.baseUrl}
-                      onChange={(e) => setProviderConfig({ ...providerConfig, baseUrl: e.target.value })}
-                      placeholder="http://localhost:11434"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-                    />
-                    <p className="mt-1 text-xs text-gray-500">
-                      Make sure Ollama is running on your local machine
-                    </p>
-                  </div>
-                </>
-              ) : (
-                // Remote API providers
-                <>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      API Key
-                    </label>
-                    <input
-                      type="password"
-                      value={providerConfig.apiKey}
-                      onChange={(e) => setProviderConfig({ ...providerConfig, apiKey: e.target.value })}
-                      placeholder={`Enter your ${providers.find(p => p.id === showProviderSettings)?.name} API key`}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      API Base URL (Optional)
-                    </label>
-                    <input
-                      type="text"
-                      value={providerConfig.baseUrl}
-                      onChange={(e) => setProviderConfig({ ...providerConfig, baseUrl: e.target.value })}
-                      placeholder="https://api.example.com/v1"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-                    />
-                  </div>
-                </>
-              )}
-            </div>
-
-            <div className="flex items-center justify-end space-x-3 mt-6">
-              <button
-                onClick={() => setShowProviderSettings(false)}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => handleConnectProvider(showProviderSettings)}
-                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
-              >
-                Connect
-              </button>
-            </div>
-          </motion.div>
-        </div>
-      )}
     </div>
   );
 }
